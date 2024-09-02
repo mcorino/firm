@@ -1,4 +1,4 @@
-# FIRM - Form Independent Ruby Marshalling
+# FIRM - Format Independent Ruby Marshalling
 
 ## Introduction
 
