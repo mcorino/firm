@@ -496,6 +496,56 @@ module SerializerTestMixin
     assert_equal(:three, obj_new.first.map[obj_new.last.ref3].sym)
   end
 
+  class Aliasable
+    include FIRM::Serializable
+
+    property :name, :description
+
+    allow_aliases
+
+    def initialize(*args)
+      @name, @description = *args
+    end
+
+    attr_accessor :name, :description
+  end
+
+  class DerivedAliasable < Aliasable
+
+    property :extra
+
+    def initialize(*args)
+      @extra = args.pop if args.size>2
+      super
+    end
+
+    attr_accessor :extra
+
+  end
+
+  def test_aliases
+    container = Container.new
+    container.map[:one] = Aliasable.new('one', 'First aliasable')
+    container.map[:two] = Aliasable.new('two', 'Second aliasable')
+    container.map[:three] = container.map[:one]
+    container.map[:four] = container.map[:two]
+    container.map[:five] = DerivedAliasable.new('three', 'Third aliasable', 'Derived aliasable')
+    container.map[:six] = container.map[:five]
+    obj_serial = container.serialize
+    obj_new = nil
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_instance_of(Container, obj_new)
+    assert_instance_of(Aliasable, obj_new.map[:one])
+    assert_instance_of(Aliasable, obj_new.map[:two])
+    assert_instance_of(Aliasable, obj_new.map[:three])
+    assert_equal(obj_new.map[:one].object_id, obj_new.map[:three].object_id)
+    assert_instance_of(Aliasable, obj_new.map[:four])
+    assert_equal(obj_new.map[:two].object_id, obj_new.map[:four].object_id)
+    assert_instance_of(DerivedAliasable, obj_new.map[:five])
+    assert_instance_of(DerivedAliasable, obj_new.map[:six])
+    assert_equal(obj_new.map[:five].object_id, obj_new.map[:six].object_id)
+  end
+
   def test_nested_hash_with_complex_keys
     id_obj = Identifiable.new(:one)
     id_obj2 = Identifiable.new(:two)
@@ -518,6 +568,98 @@ module SerializerTestMixin
       assert_instance_of(FIRM::Serializable::ID, k.first.first.first)
       assert_equal(v, k.first[k.first.first.first].sym.to_s)
     end
+  end
+
+  class NestedSerializer
+    include FIRM::Serializable
+
+    property :nested, handler: :marshall_nested
+
+    def initialize(serializable=nil)
+      @nested = serializable
+    end
+
+    attr_reader :nested
+
+    protected
+
+    def marshall_nested(_id, *val)
+      if val.empty?
+        @nested.serialize
+      else
+        @nested = FIRM::Serializable.deserialize(val.first)
+        nil
+      end
+    end
+
+  end
+
+  def test_nested_serialize
+    container = Container.new
+    container.map[:one] = Aliasable.new('one', 'First aliasable')
+    container.map[:two] = Aliasable.new('two', 'Second aliasable')
+    container.map[:three] = container.map[:one]
+    container.map[:four] = container.map[:two]
+    container.map[:five] = DerivedAliasable.new('three', 'Third aliasable', 'Derived aliasable')
+    container.map[:six] = container.map[:five]
+    id_obj = Identifiable.new(:seven)
+    container.map[id_obj.sym] = id_obj
+    id_obj = Identifiable.new(:eight)
+    container.map[id_obj.sym] = id_obj
+    id_obj = Identifiable.new(:nine)
+    container.map[id_obj.sym] = id_obj
+    ref_obj = RefUser.new(container.map[:seven].id, container.map[:eight].id, container.map[:nine].id)
+    container.map[:ten] = ref_obj
+    nest_obj = NestedSerializer.new(container)
+    obj_serial = [nest_obj, container.map[:one], container.map[:two], container.map[:five], [container.map[:three], container.map[:four], container.map[:six]], ref_obj].serialize(nil, pretty: true)
+    obj_new = nil
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_instance_of(::Array, obj_new)
+    assert_instance_of(NestedSerializer, obj_new[0])
+    container = obj_new[0].nested
+    assert_instance_of(Container, container)
+    assert_instance_of(Aliasable, container.map[:one])
+    assert_instance_of(Aliasable, container.map[:two])
+    assert_instance_of(Aliasable, container.map[:three])
+    assert_equal(container.map[:one].object_id, container.map[:three].object_id)
+    assert_instance_of(Aliasable, container.map[:four])
+    assert_equal(container.map[:two].object_id, container.map[:four].object_id)
+    assert_instance_of(DerivedAliasable, container.map[:five])
+    assert_instance_of(DerivedAliasable, container.map[:six])
+    assert_equal(container.map[:five].object_id, container.map[:six].object_id)
+
+    assert_instance_of(RefUser, container.map[:ten])
+    assert_instance_of(FIRM::Serializable::ID, container.map[:ten].ref1)
+    assert_instance_of(FIRM::Serializable::ID, container.map[:ten].ref2)
+    assert_instance_of(FIRM::Serializable::ID, container.map[:ten].ref3)
+    assert_equal(:seven, container.map[:seven].sym)
+    assert_equal(container.map[:ten].ref1, container.map[:seven].id)
+    assert_equal(:eight, container.map[:eight].sym)
+    assert_equal(container.map[:ten].ref2, container.map[:eight].id)
+    assert_equal(:nine, container.map[:nine].sym)
+    assert_equal(container.map[:ten].ref3, container.map[:nine].id)
+
+    assert_instance_of(Aliasable, obj_new[1])
+    assert_instance_of(Aliasable, obj_new[2])
+    assert_instance_of(DerivedAliasable, obj_new[3])
+    assert_instance_of(::Array, obj_new[4])
+    assert_instance_of(Aliasable, obj_new[4][0])
+    assert_instance_of(Aliasable, obj_new[4][1])
+    assert_instance_of(DerivedAliasable, obj_new[4][2])
+    assert_equal(obj_new[1].object_id, obj_new[4][0].object_id)
+    assert_equal(obj_new[2].object_id, obj_new[4][1].object_id)
+    assert_equal(obj_new[3].object_id, obj_new[4][2].object_id)
+
+    assert_equal(container.map[:one].name, obj_new[4][0].name)
+    assert_not_equal(container.map[:one].object_id, obj_new[4][0].object_id)
+    assert_equal(container.map[:two].name, obj_new[4][1].name)
+    assert_not_equal(container.map[:two].object_id, obj_new[4][1].object_id)
+    assert_equal(container.map[:five].name, obj_new[4][2].name)
+    assert_not_equal(container.map[:five].object_id, obj_new[4][2].object_id)
+
+    assert_not_equal(container.map[:ten].ref1, obj_new.last.ref1)
+    assert_not_equal(container.map[:ten].ref2, obj_new.last.ref2)
+    assert_not_equal(container.map[:ten].ref3, obj_new.last.ref3)
   end
 
 end
