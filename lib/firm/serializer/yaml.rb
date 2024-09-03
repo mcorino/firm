@@ -43,7 +43,9 @@ module FIRM
         def visit_Psych_Nodes_Alias o
           rc = @st.fetch(o.anchor) { raise ::YAML::AnchorNotDefined, o.anchor }
           # only allow Serializable::ID aliases
-          raise ::YAML::AliasesNotEnabled unless ALLOWED_ALIASES.any? { |klass| klass === rc }
+          raise ::YAML::AliasesNotEnabled unless
+            ALLOWED_ALIASES.any? { |klass| klass === rc } ||
+              Serializable::Aliasing.aliasable_classes.any? { |klass| klass === rc }
           rc
         end
       end

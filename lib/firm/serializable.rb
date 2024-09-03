@@ -176,6 +176,139 @@ module FIRM
 
     end
 
+    # This module provides the base support for instance aliasing and is
+    # used as a mixin for classes for which aliases have been allowed.
+    module Aliasing
+
+      class << self
+
+        # Returns a {Set} of classes for which aliases are allowed.
+        # @return [::Set]
+        def aliasable_classes
+          @aliasable_classes ||= ::Set.new
+        end
+
+        # Returns true if the given class allows aliasing, false otherwise.
+        # @return [Boolean]
+        def allows_aliases?(klass)
+          aliasable_classes.include?(klass)
+        end
+
+      end
+
+      def self.included(base)
+        # only once
+        return if Serializable::Aliasing.allows_aliases?(base)
+        # register this class as an aliasable class
+        Serializable::Aliasing.aliasable_classes << base
+        # to optimize testing for allowable aliases
+        base.singleton_class.class_eval do
+          def allows_aliases?
+            true
+          end
+        end
+      end
+
+    end
+
+    # This module provides alias (de-)serialization management functionality for
+    # output engines that do not provide this support out of the box.
+    module AliasManagement
+
+      TLS_ANCHORS_STACK_KEY = :firm_alias_anchors_stack.freeze
+      private_constant :TLS_ANCHORS_STACK_KEY
+
+      TLS_ALIAS_STACK_KEY = :firm_anchor_reference_stack.freeze
+      private_constant :TLS_ALIAS_STACK_KEY
+
+      def anchor_registry_stack
+        ::Thread.current[TLS_ANCHORS_STACK_KEY] ||= []
+      end
+      private :anchor_registry_stack
+
+      def start_anchor_registry
+        anchor_registry_stack.push({})
+      end
+
+      def clear_anchor_registry
+        anchor_registry_stack.pop
+      end
+
+      def anchor_registry
+        anchor_registry_stack.last
+      end
+      private :anchor_registry
+
+      def class_anchors(klass)
+        anchor_registry[klass] ||= {}
+      end
+      private :class_anchors
+
+      # Creates a new anchor registration and returns the anchor ID
+      # @param [Object] object anchor instance
+      # @return [FIRM::Serializable::ID] anchor ID
+      def create_anchor(object)
+        anchors = class_anchors(object.class)
+        raise ArgumentError, "Duplicate anchor creation for #{object}" if anchors.has_key?(object.object_id)
+        anchors[object.object_id] = Serializable::ID.new
+      end
+
+      # Returns true if the object has an anchor registration, false otherwise.
+      # @return [Boolean]
+      def anchored?(object)
+        class_anchors(object.class).has_key?(object.object_id)
+      end
+
+      # Retrieves the anchor ID for an anchored object.
+      # Returns nil if the object is not anchored.
+      # @return [nil,FIRM::Serializable::ID]
+      def get_anchor(object)
+        anchors = class_anchors(object.class)
+        anchors[object.object_id]
+      end
+
+      def anchor_references_stack
+        ::Thread.current[TLS_ALIAS_STACK_KEY] ||= []
+      end
+      private :anchor_references_stack
+
+      def start_anchor_references
+        anchor_references_stack.push({})
+      end
+
+      def clear_anchor_references
+        anchor_references_stack.pop
+      end
+
+      def anchor_references
+        anchor_references_stack.last
+      end
+      private :anchor_references
+
+      def class_anchor_references(klass)
+        anchor_references[klass] ||= {}
+      end
+      private :class_anchor_references
+
+      # Registers a restored anchor object and it's ID.
+      # @param [FIRM::Serializable::ID] id anchor ID
+      # @param [Object] object anchor instance
+      # @return [Object] anchor instance
+      def restore_anchor(id, object)
+        class_anchor_references(object.class)[id] = object
+      end
+
+      # Resolves a referenced anchor instance.
+      # Returns the instance if found, nil otherwise.
+      # @param [Class] klass aliasable class of the anchor instance
+      # @param [FIRM::Serializable::ID] id anchor id
+      # @return [nil,Object]
+      def resolve_anchor(klass, id)
+        class_anchor_references(klass)[id]
+      end
+
+    end
+
     # Mixin module for classes that get FIRM::Serializable included.
     # This module is used to extend the class methods of the serializable class.
     module SerializeClassMethods
@@ -286,6 +419,11 @@ module FIRM
       end
       alias :deserialize_finalizer :define_deserialize_finalizer
 
+      # Provides aliasing support for (de-)serializing
+      def allow_aliases
+        self.include(FIRM::Serializable::Aliasing) unless self.include?(FIRM::Serializable::Aliasing)
+      end
+
     end
 
     # Mixin module for classes that get FIRM::Serializable included.
@@ -368,6 +506,8 @@ module FIRM
     def self.included(base)
       ::Kernel.raise RuntimeError, "#{self} should only be included in classes" if base.instance_of?(::Module)
 
+      ::Kernel.raise RuntimeError, "#{self} should be included only once in #{base}" if Serializable.serializables.include?(base.name)
+
       # register as serializable class
       Serializable.serializables << base
 
@@ -420,6 +560,9 @@ module FIRM
         end
         def get_deserialize_finalizer
           @finalize_from_deserialized
+        end
+        def allows_aliases?
+          false # by default not allowed
         end
       end
 
@@ -508,6 +651,11 @@ module FIRM
 
           # register as serializable class
           Serializable.serializables << derived
+
+          # aliasing support is inherited
+          if self.allows_aliases?
+            Serializable::Aliasing.aliasable_classes << derived
+          end
         end
       end
 

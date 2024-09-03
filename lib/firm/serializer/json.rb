@@ -107,10 +107,10 @@ module FIRM
                      ::Date, ::DateTime, ::Exception, ::Range, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct]
         end
 
-        TLS_SAFE_DESERIALIZE_KEY = :wx_sf_json_safe_deserialize.freeze
+        TLS_SAFE_DESERIALIZE_KEY = :firm_json_safe_deserialize.freeze
         private_constant :TLS_SAFE_DESERIALIZE_KEY
 
-        TLS_PARSE_STACK_KEY = :wx_sf_json_parse_stack.freeze
+        TLS_PARSE_STACK_KEY = :firm_json_parse_stack.freeze
         private_constant :TLS_PARSE_STACK_KEY
 
         def safe_deserialize
@@ -148,15 +148,22 @@ module FIRM
 
       def self.dump(obj, io=nil, pretty: false)
         obj.extend(HashInstancePatch) if obj.is_a?(::Hash)
-        if pretty
-          if io || io.respond_to?(:write)
-            io.write(::JSON.pretty_generate(obj))
-            io
+        begin
+          # initialize anchor registry
+          Serializable::Aliasing.start_anchor_registry
+          if pretty
+            if io || io.respond_to?(:write)
+              io.write(::JSON.pretty_generate(obj))
+              io
+            else
+              ::JSON.pretty_generate(obj)
+            end
           else
-            ::JSON.pretty_generate(obj)
+            ::JSON.dump(obj, io)
           end
-        else
-          ::JSON.dump(obj, io)
+        ensure
+          # reset anchor registry
+          Serializable::Aliasing.clear_anchor_registry
         end
       end
 
@@ -164,6 +171,8 @@ module FIRM
         begin
           # initialize ID restoration map
           Serializable::ID.init_restoration_map
+          # initialize alias anchor restoration map
+          Serializable::Aliasing.start_anchor_references
           # enable safe deserializing
           self.start_safe_deserialize
           ::JSON.parse!(source,
@@ -172,6 +181,8 @@ module FIRM
         ensure
           # reset safe deserializing
           self.end_safe_deserialize
+          # reset alias anchor restoration map
+          Serializable::Aliasing.clear_anchor_references
           # reset ID restoration map
           Serializable::ID.clear_restoration_map
         end
@@ -179,13 +190,34 @@ module FIRM
 
     end
 
+    module Aliasing
+      class << self
+        include Serializable::AliasManagement
+      end
+    end
+
     # extend serialization class methods
     module SerializeClassMethods
 
       def json_create(object)
-        create_for_deserialize(data = object['data'])
-          .__send__(:from_serialized, data)
-          .__send__(:finalize_from_serialized)
+        if self.allows_aliases?
+          # deserializing anchor or alias
+          if object['data'].has_key?('&id')
+            anchor_id = object['data'].delete('&id')
+            instance = create_for_deserialize(data = object['data'])
+                         .__send__(:from_serialized, data)
+                         .__send__(:finalize_from_serialized)
+            Serializable::Aliasing.restore_anchor(anchor_id, instance)
+          elsif object['data'].has_key?('*id')
+            Serializable::Aliasing.resolve_anchor(self, object['data']['*id'])
+          else
+            raise RuntimeError, 'Aliasable instance misses anchor or alias id'
+          end
+        else
+          create_for_deserialize(data = object['data'])
+            .__send__(:from_serialized, data)
+            .__send__(:finalize_from_serialized)
+        end
       end
 
     end
@@ -194,10 +226,18 @@ module FIRM
     module SerializeInstanceMethods
 
       def to_json(*args)
-        {
-          ::JSON.create_id => self.class.name,
-          'data' => for_serialize(Hash.new)
-        }.to_json(*args)
+        json_data = {
+          ::JSON.create_id => self.class.name
+        }
+        if self.class.allows_aliases? && Serializable::Aliasing.anchored?(self)
+          json_data["data"] = {
+            '*id' => Serializable::Aliasing.get_anchor(self)
+          }
+        else
+          json_data['data'] = for_serialize(Hash.new)
+          json_data['data']['&id'] = Serializable::Aliasing.create_anchor(self) if self.class.allows_aliases?
+        end
+        json_data.to_json(*args)
       end
 
     end
