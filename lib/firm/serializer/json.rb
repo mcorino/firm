@@ -227,7 +227,7 @@ end
 module ::JSON
   class << self
 
-    alias :pre_wxsf_parse! :parse!
+    alias :pre_firm_parse! :parse!
     def parse!(*args, **kwargs)
       begin
         # setup parsing stack for safe or normal deserializing
@@ -235,7 +235,7 @@ module ::JSON
         # makes sure to support both nested Wx::SF deserializing as well as nested
         # hybrid deserializing (Wx::SF -> common JSON -> ...)
         FIRM::Serializable::JSON.start_parse
-        pre_wxsf_parse!(*args, **kwargs)
+        pre_firm_parse!(*args, **kwargs)
       ensure
         # reset parsing stack
         FIRM::Serializable::JSON.end_parse
