@@ -1,0 +1,10 @@
+--load rakelib/yard/yard-relative_markdown_links.rb
+--load rakelib/yard/yard-custom-templates.rb
+--charset UTF-8
+--readme README.md
+--title "FIRM API Documentation"
+--output-dir rdoc
+--protected
+lib/firm/**/*.rb
+-
+LICENSE

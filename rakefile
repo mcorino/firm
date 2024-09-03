@@ -1,0 +1,14 @@
+###
+# FIRM rake file
+# Copyright (c) M.J.N. Corino, The Netherlands
+###
+
+require 'rake/testtask'
+
+task :default => 'firm:help'
+
+Rake::TestTask.new do |t|
+  t.test_files = FileList['tests/test*.rb']
+  t.verbose = false
+  t.warning = false
+end
