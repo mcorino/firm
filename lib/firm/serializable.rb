@@ -7,6 +7,8 @@ module FIRM
 
   module Serializable
 
+    class Exception < RuntimeError; end
+
     class Property
       def initialize(klass, prop, proc=nil, force: false, handler: nil, &block)
         ::Kernel.raise ArgumentError, "Invalid property id [#{prop}]" unless ::String === prop || ::Symbol === prop
@@ -121,7 +123,7 @@ module FIRM
       private :setter
 
       def getter_fail(_obj)
-        ::Kernel.raise RuntimeError, "Missing getter for property #{@id} of #{@klass}"
+        ::Kernel.raise Serializable::Exception, "Missing getter for property #{@id} of #{@klass}"
       end
       private :getter_fail
 
@@ -249,7 +251,7 @@ module FIRM
       # @return [FIRM::Serializable::ID] anchor ID
       def create_anchor(object)
         anchors = class_anchors(object.class)
-        raise ArgumentError, "Duplicate anchor creation for #{object}" if anchors.has_key?(object.object_id)
+        raise Serializable::Exception, "Duplicate anchor creation for #{object}" if anchors.has_key?(object.object_id)
         anchors[object.object_id] = Serializable::ID.new
       end
 
@@ -407,7 +409,7 @@ module FIRM
       # to the instance method #from_serialized(data).
       # Classes that do not support a default constructor can override this class method and
       # implement a custom creation scheme.
-      # @param [Hash] _data hash containing deserialized property data (symbol keys)
+      # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
       # @return [Object] the newly created object
       def create_for_deserialize(_data)
         self.new
@@ -463,13 +465,13 @@ module FIRM
       # @!method for_serialize(hash, excludes = Set.new)
       #   Serializes the properties of a serializable instance to the given hash
       #   except when the property id is included in excludes.
-      #   @param [Hash] hash property serialization hash
+      #   @param [Object] hash hash-like property serialization container
       #   @param [Set] excludes set with excluded property ids
-      #   @return [Hash] property serialization hash
+      #   @return [Object] hash-like property serialization container
 
       # @!method from_serialized(hash)
       #   Restores the properties of a deserialized instance.
-      #   @param [Hash] hash deserialized properties hash
+      #   @param [Object] hash hash-like property deserialization container
       #   @return [self]
 
       # #!method finalize_from_serialized()
@@ -581,14 +583,12 @@ module FIRM
       # add instance property (de-)serialization methods for base class
       base.class_eval <<~__CODE
         def for_serialize(hash, excludes = ::Set.new)
-          hash[:'@explicit'] = true if serialize_disabled? # mark explicit serialize overriding disabling
           #{base.name}.serializer_properties.each { |prop, h| prop.serialize(self, hash, excludes) }
           hash 
         end
         protected :for_serialize
 
         def from_serialized(hash)
-          disable_serialize if hash[:'@explicit'] # re-instate serialization disabling
           #{base.name}.serializer_properties.each { |prop| prop.deserialize(self, hash) }
           self
         end

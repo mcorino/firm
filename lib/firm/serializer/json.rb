@@ -211,7 +211,7 @@ module FIRM
           elsif object['data'].has_key?('*id')
             Serializable::Aliasing.resolve_anchor(self, object['data']['*id'])
           else
-            raise RuntimeError, 'Aliasable instance misses anchor or alias id'
+            raise Serializable::Exception, 'Aliasable instance misses anchor or alias id'
           end
         else
           create_for_deserialize(data = object['data'])
@@ -246,7 +246,7 @@ module FIRM
 
       def self.json_create(object)
         # does not need calls to #from_serialized or #finalize_from_serialized
-        create_for_deserialize(data = object['data'])
+        create_for_deserialize(object['data'])
       end
 
       def to_json(*args)

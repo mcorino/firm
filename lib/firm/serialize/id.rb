@@ -31,7 +31,7 @@ module FIRM
       # Returns a Serialized::Id instance matching the deserialized id number
       # either by retrieving an earlier restored Id from the (thread/fiber-)current
       # restoration map or creating (and mapping) a new Id instance.
-      # @param [Hash] data deserialized properties hash
+      # @param [Object] data hash-like deserialized properties container
       # @return [ID] restored ID instance
       # @see SerializeClassMethods#create_for_deserialize
       def self.create_for_deserialize(data)
@@ -41,9 +41,9 @@ module FIRM
 
       # Collects the ID's object_id for serialization.
       # Note that this is fixed and cannot be excluded.
-      # @param [Hash] hash property serialization hash
+      # @param [Object] hash hash-like property serialization container
       # @param [Set] _excludes ignored
-      # @return [Hash] property serialization hash
+      # @return [Object] property hash-like serialization container
       def for_serialize(hash, _excludes = nil)
         hash[:id] = self.object_id
         hash
