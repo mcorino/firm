@@ -4,7 +4,9 @@
 
 FIRM is a Ruby library providing output format independent object (de-)serialization support.
 
-By default (de-)serializing Ruby object to(from) JSON and YAML is supported.
+Out of the box (de-)serializing Ruby objects to(from) JSON and YAML is supported without any additional
+dependencies.
+When the `nokogiri` gem is installed XML (de-)serializing will also be available.
 
 ## FIRM licence
 
