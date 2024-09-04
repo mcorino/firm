@@ -4,37 +4,21 @@
 # we do not include FIRM::Serializer::SerializeMethod here as that would
 # also extend these classes with the engine specific extension that we do not
 # need nor want here
+# Instead we define a slim mixin module to extend (complex) core classes
 
-class Array
-  def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
-    FIRM::Serializable[format].dump(self, io, pretty: pretty)
-  end
-end
-
-class Hash
-  def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
-    FIRM::Serializable[format].dump(self, io, pretty: pretty)
-  end
-end
-
-class Struct
-  def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
-    FIRM::Serializable[format].dump(self, io, pretty: pretty)
+module FIRM
+  module Serializable
+    module CoreExt
+      def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
+        FIRM::Serializable[format].dump(self, io, pretty: pretty)
+      end
+    end
   end
 end
 
 require 'set'
-
-class Set
-  def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
-    FIRM::Serializable[format].dump(self, io, pretty: pretty)
-  end
-end
-
 require 'ostruct'
 
-class OpenStruct
-  def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
-    FIRM::Serializable[format].dump(self, io, pretty: pretty)
-  end
+[::Array, ::Hash, ::Struct, ::Range, ::Regexp, ::Set, ::OpenStruct, ::Time, ::Date, ::DateTime].each do |c|
+  c.include FIRM::Serializable::CoreExt
 end
