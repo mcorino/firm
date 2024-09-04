@@ -83,8 +83,7 @@ module SerializerTestMixin
       if args.empty?
         @x = @y = 0
       else
-        @x = x
-        @y = y
+        @x, @y = *args
       end
     end
 
@@ -158,7 +157,7 @@ module SerializerTestMixin
 
     def initialize(*args)
       if args.empty?
-        @red, @green, @blue, @alpha = args
+        @red, @green, @blue, @alpha = *args
         @alpha ||= 255
       else
         @red = @green = @blue = 0
