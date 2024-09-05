@@ -320,6 +320,23 @@ module FIRM
         end
       end
 
+      module RegexpHandler
+        def self.klass
+          ::Regexp
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          Serializable::XML.to_xml(node, value.source)
+          Serializable::XML.to_xml(node, value.options)
+        end
+        def self.from_xml(xml)
+          ::Regexp.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+        end
+      end
+
       module SetHandler
         def self.klass
           ::Set
@@ -376,6 +393,7 @@ module FIRM
       register_xml_handler(HashHandler)
       register_xml_handler(StructHandler)
       register_xml_handler(RangeHandler)
+      register_xml_handler(RegexpHandler)
       register_xml_handler(SetHandler)
       register_xml_handler(OpenStructHandler)
 

@@ -237,6 +237,17 @@ module SerializerTestMixin
     obj_serial = obj.serialize
     assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
+
+    obj = (0..10)
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
+    obj = /\Ahello.*/i
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
   end
 
   class PointsOwner
