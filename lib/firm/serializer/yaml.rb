@@ -2,6 +2,7 @@
 # Copyright (c) M.J.N. Corino, The Netherlands
 
 require 'yaml'
+require 'date'
 require 'set'
 require 'ostruct'
 
@@ -13,7 +14,9 @@ module FIRM
 
       class << self
         def serializables
-          [Date, DateTime, Exception, Range, Regexp, Struct, Symbol, Time, Set, OpenStruct]
+          list = [::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct]
+          list.push(::BigDecimal) if ::Object.const_defined?(:BigDecimal)
+          list
         end
       end
 
