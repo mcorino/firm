@@ -2,7 +2,16 @@
 # Copyright (c) M.J.N. Corino, The Netherlands
 
 require 'json'
-require 'json/add/core'
+require 'json/add/date'
+require 'json/add/date_time'
+require 'json/add/range'
+require 'json/add/regexp'
+require 'json/add/struct'
+require 'json/add/symbol'
+require 'json/add/time'
+require 'json/add/bigdecimal' if ::Object.const_defined?(:BigDecimal)
+require 'json/add/rational'
+require 'json/add/complex'
 require 'json/add/set'
 require 'json/add/ostruct'
 
@@ -103,8 +112,10 @@ module FIRM
 
       class << self
         def serializables
-          ::Set.new [::NilClass, ::TrueClass, ::FalseClass, ::Integer, ::Float, ::String, ::Array, ::Hash,
-                     ::Date, ::DateTime, ::Exception, ::Range, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct]
+          set = ::Set.new( [::NilClass, ::TrueClass, ::FalseClass, ::Integer, ::Float, ::String, ::Array, ::Hash,
+                     ::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct])
+          set << ::BigDecimal if ::Object.const_defined?(:BigDecimal)
+          set
         end
 
         TLS_SAFE_DESERIALIZE_KEY = :firm_json_safe_deserialize.freeze
@@ -295,6 +306,25 @@ class ::Class
                           ::Struct > self
     end
     respond_to?(:json_create)
+  end
+
+end
+
+# fix flawed JSON serializing
+class ::DateTime
+
+  def as_json(*)
+    {
+      JSON.create_id => self.class.name,
+      'y' => year,
+      'm' => month,
+      'd' => day,
+      'H' => hour,
+      'M' => min,
+      'S' => sec_fraction.to_f+sec,
+      'of' => offset.to_s,
+      'sg' => start,
+    }
   end
 
 end
