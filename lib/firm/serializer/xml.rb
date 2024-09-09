@@ -1,6 +1,7 @@
 # FIRM::Serializer - shape serializer module
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+require 'date'
 begin
   require 'nokogiri'
 rescue LoadError
@@ -234,7 +235,13 @@ module FIRM
           xml
         end
         def self.from_xml(xml)
-          Float(xml.content)
+          case (s = xml.content)
+          when 'NaN' then :Float::NAN
+          when 'Infinity' then ::Float::INFINITY
+          when '-Infinity' then -::Float::INFINITY
+          else
+            Float(s)
+          end
         end
       end
 
@@ -302,6 +309,60 @@ module FIRM
         end
       end
 
+      module RationalHandler
+        def self.klass
+          ::Rational
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          Serializable::XML.to_xml(node, value.numerator)
+          Serializable::XML.to_xml(node, value.denominator)
+          xml
+        end
+        def self.from_xml(xml)
+          Rational(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+        end
+      end
+
+      module ComplexHandler
+        def self.klass
+          ::Complex
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          Serializable::XML.to_xml(node, value.real)
+          Serializable::XML.to_xml(node, value.imaginary)
+          xml
+        end
+        def self.from_xml(xml)
+          Complex(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+        end
+      end
+
+      if ::Object.const_defined?(:BigDecimal)
+        module BigDecimalHandler
+          def self.klass
+            ::BigDecimal
+          end
+          def self.tag
+            klass
+          end
+          def self.to_xml(xml, value)
+            xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).add_child(Nokogiri::XML::CDATA.new(xml.document, value._dump))
+            xml
+          end
+          def self.from_xml(xml)
+            ::BigDecimal._load(xml.content)
+          end
+        end
+      end
+
       module RangeHandler
         def self.klass
           ::Range
@@ -314,6 +375,7 @@ module FIRM
           Serializable::XML.to_xml(node, value.begin)
           Serializable::XML.to_xml(node, value.end)
           Serializable::XML.to_xml(node, value.exclude_end?)
+          xml
         end
         def self.from_xml(xml)
           ::Range.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
@@ -331,9 +393,73 @@ module FIRM
           node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
           Serializable::XML.to_xml(node, value.source)
           Serializable::XML.to_xml(node, value.options)
+          xml
         end
         def self.from_xml(xml)
           ::Regexp.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+        end
+      end
+
+      module TimeHandler
+        def self.klass
+          ::Time
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          utc = value.getutc
+          Serializable::XML.to_xml(node, utc.tv_sec)
+          Serializable::XML.to_xml(node, utc.tv_nsec)
+          xml
+        end
+        def self.from_xml(xml)
+          ::Time.at(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, :nanosecond)
+        end
+      end
+
+      module DateHandler
+        def self.klass
+          ::Date
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          idt = value.italy
+          Serializable::XML.to_xml(node, idt.year)
+          Serializable::XML.to_xml(node, idt.month)
+          Serializable::XML.to_xml(node, idt.day)
+          xml
+        end
+        def self.from_xml(xml)
+          ::Date.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, ::Date::ITALY)
+        end
+      end
+
+      module DateTimeHandler
+        def self.klass
+          ::DateTime
+        end
+        def self.tag
+          klass
+        end
+        def self.to_xml(xml, value)
+          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          idt = value.italy
+          Serializable::XML.to_xml(node, idt.year)
+          Serializable::XML.to_xml(node, idt.month)
+          Serializable::XML.to_xml(node, idt.day)
+          Serializable::XML.to_xml(node, idt.hour)
+          Serializable::XML.to_xml(node, idt.min)
+          Serializable::XML.to_xml(node, idt.sec_fraction.to_f + idt.sec)
+          Serializable::XML.to_xml(node, idt.offset)
+          xml
+        end
+        def self.from_xml(xml)
+          ::DateTime.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, ::Date::ITALY)
         end
       end
 
@@ -393,7 +519,13 @@ module FIRM
       register_xml_handler(HashHandler)
       register_xml_handler(StructHandler)
       register_xml_handler(RangeHandler)
+      register_xml_handler(RationalHandler)
+      register_xml_handler(ComplexHandler)
+      register_xml_handler(BigDecimalHandler) if ::Object.const_defined?(:BigDecimal)
       register_xml_handler(RegexpHandler)
+      register_xml_handler(TimeHandler)
+      register_xml_handler(DateHandler)
+      register_xml_handler(DateTimeHandler)
       register_xml_handler(SetHandler)
       register_xml_handler(OpenStructHandler)
 
