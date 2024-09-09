@@ -1,3 +1,7 @@
+begin
+  require 'bigdecimal'
+rescue LoadError
+end
 require 'firm'
 
 module SerializerTestMixin
@@ -243,7 +247,39 @@ module SerializerTestMixin
     assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
+    obj = Rational(5, 3)
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
     obj = /\Ahello.*/i
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
+    obj = Time.now - 999
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
+    obj = Date.today - 33
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
+    obj = DateTime.now
+    obj_serial = obj.serialize
+    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_equal(obj, obj_new)
+
+    if ::Object.const_defined?(:BigDecimal)
+      obj = BigDecimal(2**64 + 0.1234, 4)
+      obj_serial = obj.serialize
+      assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+      assert_equal(obj, obj_new)
+    end
+
+    obj = Complex(0.5, 0.75)
     obj_serial = obj.serialize
     assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
