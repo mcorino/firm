@@ -19,6 +19,10 @@ end
 require 'set'
 require 'ostruct'
 
-[::Array, ::Hash, ::Struct, ::Range, ::Regexp, ::Set, ::OpenStruct, ::Time, ::Date, ::DateTime].each do |c|
+[::Array, ::Hash, ::Struct, ::Range, ::Rational, ::Complex, ::Regexp, ::Set, ::OpenStruct, ::Time, ::Date, ::DateTime].each do |c|
   c.include FIRM::Serializable::CoreExt
+end
+
+if ::Object.const_defined?(:BigDecimal)
+  ::BigDecimal.include FIRM::Serializable::CoreExt
 end
