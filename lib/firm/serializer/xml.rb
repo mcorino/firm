@@ -52,6 +52,19 @@ module FIRM
         end
         private_constant :NullHandler
 
+        module HandlerMethods
+          def create_type_node(xml)
+            xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+          end
+          def to_xml(_, _)
+            raise Serializable::Exception, "Missing serialization method for #{klass} XML handler"
+          end
+          def from_xml(xml)
+            raise Serializable::Exception, "Missing serialization method for #{klass} XML handler"
+          end
+        end
+        private_constant :HandlerMethods
+
         def xml_handlers
           @xml_handlers ||= {}
         end
@@ -61,6 +74,7 @@ module FIRM
           raise RuntimeError, "Duplicate XML handler for tag #{handler.tag}" if xml_handlers.has_key?(handler.tag.to_s)
           xml_handlers[handler.tag.to_s] = handler
         end
+        private :register_xml_handler
 
         def get_xml_handler(tag_or_value)
           h = xml_handlers[tag_or_value.to_s]
@@ -69,6 +83,23 @@ module FIRM
             h = xml_handlers.values.find { |hnd| hnd.klass > tag_or_value } || NullHandler.new(tag_or_value)
           end
           h
+        end
+        private :get_xml_handler
+
+        def define_xml_handler(klass, tag=nil, &block)
+          hnd_klass = Class.new
+          hnd_klass.singleton_class.include(HandlerMethods)
+          tag_code = if tag
+                       ::Symbol === tag ? ":#{tag}" : "'#{tag.to_s}'"
+                     else
+                       'klass'
+                     end
+          hnd_klass.singleton_class.class_eval <<~__CODE
+            def klass; #{klass};  end
+            def tag; #{tag_code}; end
+          __CODE
+          hnd_klass.singleton_class.class_eval &block if block_given?
+          register_xml_handler(hnd_klass)
         end
 
         def to_xml(xml, value)
@@ -92,149 +123,95 @@ module FIRM
 
       end
 
-      module ObjectHandler
-        def self.klass
-          FIRM::Serializable
-        end
-        def self.tag
-          :Object
-        end
-        def self.to_xml(_, _)
+      define_xml_handler(FIRM::Serializable, :Object) do
+        def to_xml(_, _)
           raise Serializable::Exception, 'Unsupported Object serialization'
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           raise Serializable::Exception, 'Missing Serializable class name' unless xml.has_attribute?('class')
           Object.const_get(xml['class']).from_xml(xml)
         end
       end
 
-      module NilHandler
-        def self.klass
-          NilClass
-        end
-        def self.tag
-          :nil
-        end
-        def self.to_xml(xml, _value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::NilClass, :nil) do
+        def to_xml(xml, _value)
+          create_type_node(xml)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(_xml)
           nil
         end
       end
 
-      module TrueHandler
-        def self.klass
-          ::TrueClass
-        end
-        def self.tag
-          :true
-        end
-        def self.to_xml(xml, _value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::TrueClass, :true) do
+        def to_xml(xml, _value)
+          create_type_node(xml)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(_xml)
           true
         end
       end
 
-      module FalseHandler
-        def self.klass
-          ::FalseClass
-        end
-        def self.tag
-          :false
-        end
-        def self.to_xml(xml, _value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::FalseClass, :false) do
+        def to_xml(xml, _value)
+          create_type_node(xml)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(_xml)
           false
         end
       end
 
-      module ArrayHandler
-        def self.klass
-          ::Array
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Array) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           value.each do |v|
             Serializable::XML.to_xml(node, v)
           end
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           xml.elements.collect { |child| Serializable::XML.from_xml(child) }
         end
       end
 
-      module StringHandler
-        def self.klass
-          ::String
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).add_child(Nokogiri::XML::CDATA.new(xml.document, value))
+      define_xml_handler(::String) do
+        def to_xml(xml, value)
+          create_type_node(xml).add_child(Nokogiri::XML::CDATA.new(xml.document, value))
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           xml.content
         end
       end
 
-      module SymbolHandler
-        def self.klass
-          ::Symbol
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).content = value.to_s
+      define_xml_handler(::Symbol) do
+        def to_xml(xml, value)
+          create_type_node(xml).content = value.to_s
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           xml.content.to_sym
         end
       end
 
-      module IntegerHandler
-        def self.klass
-          ::Integer
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).content = value.to_s
+      define_xml_handler(::Integer) do
+        def to_xml(xml, value)
+          create_type_node(xml).content = value.to_s
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           Integer(xml.content)
         end
       end
 
-      module FloatHandler
-        def self.klass
-          ::Float
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).add_child(Nokogiri::XML::CDATA.new(xml.document, value.to_s))
+      define_xml_handler(::Float) do
+        def to_xml(xml, value)
+          create_type_node(xml).add_child(Nokogiri::XML::CDATA.new(xml.document, value.to_s))
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           case (s = xml.content)
           when 'NaN' then :Float::NAN
           when 'Infinity' then ::Float::INFINITY
@@ -245,34 +222,9 @@ module FIRM
         end
       end
 
-      module ArrayHandler
-        def self.klass
-          ::Array
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
-          value.each do |v|
-            Serializable::XML.to_xml(node, v)
-          end
-          xml
-        end
-        def self.from_xml(xml)
-          xml.elements.collect { |child| Serializable::XML.from_xml(child) }
-        end
-      end
-
-      module HashHandler
-        def self.klass
-          ::Hash
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Hash) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           value.each_pair do |k,v|
             pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
             Serializable::XML.to_xml(pair, k)
@@ -280,7 +232,7 @@ module FIRM
           end
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           xml.elements.inject({}) do |hash, pair|
             k, v = pair.elements
             hash[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
@@ -289,165 +241,111 @@ module FIRM
         end
       end
 
-      module StructHandler
-        def self.klass
-          ::Struct
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Struct) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           node['class'] = value.class.name
           value.each do |v|
             Serializable::XML.to_xml(node, v)
           end
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Object.const_get(xml['class']).new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
-      module RationalHandler
-        def self.klass
-          ::Rational
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Rational) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           Serializable::XML.to_xml(node, value.numerator)
           Serializable::XML.to_xml(node, value.denominator)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           Rational(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
-      module ComplexHandler
-        def self.klass
-          ::Complex
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Complex) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           Serializable::XML.to_xml(node, value.real)
           Serializable::XML.to_xml(node, value.imaginary)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           Complex(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
       if ::Object.const_defined?(:BigDecimal)
-        module BigDecimalHandler
-          def self.klass
-            ::BigDecimal
-          end
-          def self.tag
-            klass
-          end
-          def self.to_xml(xml, value)
-            xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document)).add_child(Nokogiri::XML::CDATA.new(xml.document, value._dump))
+        define_xml_handler(::BigDecimal) do
+          def to_xml(xml, value)
+            create_type_node(xml).add_child(Nokogiri::XML::CDATA.new(xml.document, value._dump))
             xml
           end
-          def self.from_xml(xml)
+          def from_xml(xml)
             ::BigDecimal._load(xml.content)
           end
         end
       end
 
-      module RangeHandler
-        def self.klass
-          ::Range
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Range) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           Serializable::XML.to_xml(node, value.begin)
           Serializable::XML.to_xml(node, value.end)
           Serializable::XML.to_xml(node, value.exclude_end?)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Range.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
-      module RegexpHandler
-        def self.klass
-          ::Regexp
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Regexp) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           Serializable::XML.to_xml(node, value.source)
           Serializable::XML.to_xml(node, value.options)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Regexp.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
-      module TimeHandler
-        def self.klass
-          ::Time
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Time) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           utc = value.getutc
           Serializable::XML.to_xml(node, utc.tv_sec)
           Serializable::XML.to_xml(node, utc.tv_nsec)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Time.at(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, :nanosecond)
         end
       end
 
-      module DateHandler
-        def self.klass
-          ::Date
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Date) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           idt = value.italy
           Serializable::XML.to_xml(node, idt.year)
           Serializable::XML.to_xml(node, idt.month)
           Serializable::XML.to_xml(node, idt.day)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Date.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, ::Date::ITALY)
         end
       end
 
-      module DateTimeHandler
-        def self.klass
-          ::DateTime
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::DateTime) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           idt = value.italy
           Serializable::XML.to_xml(node, idt.year)
           Serializable::XML.to_xml(node, idt.month)
@@ -458,39 +356,27 @@ module FIRM
           Serializable::XML.to_xml(node, idt.offset)
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::DateTime.new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) }, ::Date::ITALY)
         end
       end
 
-      module SetHandler
-        def self.klass
-          ::Set
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::Set) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           value.each do |v|
             Serializable::XML.to_xml(node, v)
           end
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           ::Set.new(xml.elements.collect { |child| Serializable::XML.from_xml(child) })
         end
       end
 
-      module OpenStructHandler
-        def self.klass
-          ::OpenStruct
-        end
-        def self.tag
-          klass
-        end
-        def self.to_xml(xml, value)
-          node = xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
+      define_xml_handler(::OpenStruct) do
+        def to_xml(xml, value)
+          node = create_type_node(xml)
           value.each_pair do |k,v|
             pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
             Serializable::XML.to_xml(pair, k)
@@ -498,7 +384,7 @@ module FIRM
           end
           xml
         end
-        def self.from_xml(xml)
+        def from_xml(xml)
           xml.elements.inject(::OpenStruct.new) do |hash, pair|
             k, v = pair.elements
             hash[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
@@ -506,28 +392,6 @@ module FIRM
           end
         end
       end
-
-      register_xml_handler(ObjectHandler)
-      register_xml_handler(NilHandler)
-      register_xml_handler(TrueHandler)
-      register_xml_handler(FalseHandler)
-      register_xml_handler(StringHandler)
-      register_xml_handler(SymbolHandler)
-      register_xml_handler(IntegerHandler)
-      register_xml_handler(FloatHandler)
-      register_xml_handler(ArrayHandler)
-      register_xml_handler(HashHandler)
-      register_xml_handler(StructHandler)
-      register_xml_handler(RangeHandler)
-      register_xml_handler(RationalHandler)
-      register_xml_handler(ComplexHandler)
-      register_xml_handler(BigDecimalHandler) if ::Object.const_defined?(:BigDecimal)
-      register_xml_handler(RegexpHandler)
-      register_xml_handler(TimeHandler)
-      register_xml_handler(DateHandler)
-      register_xml_handler(DateTimeHandler)
-      register_xml_handler(SetHandler)
-      register_xml_handler(OpenStructHandler)
 
       class HashAdapter
         def initialize(xml)
