@@ -8,7 +8,7 @@ Out of the box (de-)serializing Ruby objects to(from) JSON and YAML is supported
 dependencies.
 When the `nokogiri` gem is installed (and loaded) XML (de-)serializing will also be available.
 
-FIRM supports (de-)serializing most core Ruby objects by out of the box including:
+FIRM supports (de-)serializing many core Ruby objects out of the box including:
 - `NilClass`
 - `TrueClass` & `FalseClass`
 - `Integer`
