@@ -6,7 +6,7 @@ FIRM is a Ruby library providing output format independent object (de-)serializa
 
 Out of the box (de-)serializing Ruby objects to(from) JSON and YAML is supported without any additional
 dependencies.
-When the `nokogiri` gem is installed XML (de-)serializing will also be available.
+When the `nokogiri` gem is installed (and loaded) XML (de-)serializing will also be available.
 
 FIRM supports (de-)serializing most core Ruby objects by out of the box including:
 - `NilClass`
@@ -104,8 +104,8 @@ IRB output:
 ### Serialize a user defined object
 
 ```ruby
+require 'nokogiri' # enable XML output format
 require 'firm'
-require 'nokogiri' # enable XML serialization
 
 class Point
 
@@ -141,7 +141,7 @@ IRB output:
 
 ```shell
 => true
-=> false
+=> true
 => 
 [:x,
  :x=,
