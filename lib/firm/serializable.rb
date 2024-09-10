@@ -168,10 +168,16 @@ module FIRM
         formatters[format.to_s.downcase]
       end
 
+      # Return the default output format symbol id (:json, :yaml, :xml).
+      # By default returns :json.
+      # @return [Symbol]
       def default_format
         @default_format ||= :json
       end
 
+      # Set the default output format.
+      # @param [Symbol] format Output format id. By default :json, :yaml and :xml (if nokogiri gem is installed) are supported.
+      # @return [Symbol] default format
       def default_format=(format)
         @default_format = format
       end
