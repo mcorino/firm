@@ -419,7 +419,7 @@ module FIRM
           Serializable::Aliasing.start_anchor_registry
           # generate XML document
           xml = to_xml(Nokogiri::XML::Document.new, obj)
-          opts = pretty ? { indent: 2 } : { }
+          opts = pretty ? { indent: 2 } : { save_with: 0 }
           if io || io.respond_to?(:write)
             xml.write_xml_to(io, opts)
             io
