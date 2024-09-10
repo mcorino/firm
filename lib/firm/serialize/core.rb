@@ -12,6 +12,18 @@ module FIRM
       def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
         FIRM::Serializable[format].dump(self, io, pretty: pretty)
       end
+
+      def self.included(base)
+        base.class_eval do
+          # Deserializes object from source data
+          # @param [IO,String] source source data (String or IO(-like object))
+          # @param [Symbol, String] format data format of source
+          # @return [Object] deserialized object
+          def self.deserialize(source, format: Serializable.default_format)
+            Serializable.deserialize(source, format: format)
+          end
+        end
+      end
     end
   end
 end

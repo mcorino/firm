@@ -70,7 +70,7 @@ module SerializerTestMixin
     obj = PropTest.new
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(PropTest, obj_new)
     assert_equal(obj, obj_new)
   end
@@ -192,19 +192,19 @@ module SerializerTestMixin
     obj = Point.new(10, 90)
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(Point, obj_new)
     assert_equal(obj, obj_new)
 
     obj = Rect.new(10, 20, 100, 900)
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(Rect, obj_new)
     assert_equal(obj, obj_new)
 
     obj = Colour.new('red')
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(Colour, obj_new)
     assert_equal(obj, obj_new)
   end
@@ -213,75 +213,75 @@ module SerializerTestMixin
     obj = [Point.new(10, 90), Point.new(20, 80)]
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = { '1' => Point.new(10, 90), '2' => Point.new(20, 80) }
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     Struct.new('MyStruct', :one, :two) unless defined? Struct::MyStruct
     obj = Struct::MyStruct.new(one: Point.new(10, 90), two: Point.new(20, 80))
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = ::Set.new(%i[one two three])
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = OpenStruct.new(one: Point.new(10, 90), two: Point.new(20, 80))
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = [1, nil, 2]
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = (0..10)
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = Rational(5, 3)
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = /\Ahello.*/i
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = Time.now - 999
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = Date.today - 33
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = DateTime.now
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     if ::Object.const_defined?(:BigDecimal)
       obj = BigDecimal(2**64 + 0.1234, 4)
       obj_serial = obj.serialize
-      assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+      assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
       assert_equal(obj, obj_new)
     end
 
     obj = Complex(0.5, 0.75)
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
   end
@@ -306,7 +306,7 @@ module SerializerTestMixin
     obj = PointsOwner.new([Point.new(10, 90), Point.new(20, 80)])
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
   end
 
@@ -351,12 +351,12 @@ module SerializerTestMixin
     obj = SerializedBase.new(1, :hello, 'World')
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = SerializedDerived.new(2, :derived, 103.50)
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
   end
 
@@ -452,22 +452,22 @@ module SerializerTestMixin
     obj = SerializedBase2.new([Point.new(1,1), Point.new(2,2), Point.new(3,3)])
     obj_serial = obj.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = SerializedBase2.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = SerializedDerived2.new([Point.new(1,1), Point.new(2,2), Point.new(3,3)])
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = SerializedDerived2_1.new([Point.new(1,1), Point.new(2,2), Point.new(3,3)], Rect.new(1, 1, 40, 40))
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = SerializedDerived2_1.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
     obj = SerializedDerived3.new([Point.new(1,1), Point.new(2,2), Point.new(3,3)])
     obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = SerializedDerived3.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
   end
 
@@ -530,7 +530,7 @@ module SerializerTestMixin
     ref_obj = RefUser.new(*container.map.keys)
     obj_serial = [container, ref_obj].serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(Array, obj_new)
     assert_instance_of(Container, obj_new.first)
     assert_instance_of(RefUser, obj_new.last)
@@ -579,7 +579,7 @@ module SerializerTestMixin
     container.map[:six] = container.map[:five]
     obj_serial = container.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(Container, obj_new)
     assert_instance_of(Aliasable, obj_new.map[:one])
     assert_instance_of(Aliasable, obj_new.map[:two])
@@ -605,7 +605,7 @@ module SerializerTestMixin
     }
     obj_serial = h.serialize
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(::Hash, obj_new)
     obj_new.each_pair do |k,v|
       assert_instance_of(::Array, k)
@@ -633,7 +633,7 @@ module SerializerTestMixin
       if val.empty?
         @nested.serialize
       else
-        @nested = FIRM::Serializable.deserialize(val.first)
+        @nested = FIRM.deserialize(val.first)
         nil
       end
     end
@@ -659,7 +659,7 @@ module SerializerTestMixin
     nest_obj = NestedSerializer.new(container)
     obj_serial = [nest_obj, container.map[:one], container.map[:two], container.map[:five], [container.map[:three], container.map[:four], container.map[:six]], ref_obj].serialize(nil, pretty: true)
     obj_new = nil
-    assert_nothing_raised { obj_new = FIRM::Serializable.deserialize(obj_serial) }
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_instance_of(::Array, obj_new)
     assert_instance_of(NestedSerializer, obj_new[0])
     container = obj_new[0].nested

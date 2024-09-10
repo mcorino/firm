@@ -426,6 +426,14 @@ module FIRM
         self.include(FIRM::Serializable::Aliasing) unless self.include?(FIRM::Serializable::Aliasing)
       end
 
+      # Deserializes object from source data
+      # @param [IO,String] source source data (String or IO(-like object))
+      # @param [Symbol, String] format data format of source
+      # @return [Object] deserialized object
+      def deserialize(source, format: Serializable.default_format)
+        Serializable.deserialize(source, format: format)
+      end
+
     end
 
     # Mixin module for classes that get FIRM::Serializable included.
@@ -664,6 +672,31 @@ module FIRM
     end
 
   end # module Serializable
+
+
+  # Serialize the given object
+  # @overload serialize(obj, pretty: false, format: Serializable.default_format)
+  #   @param [Object] obj object to serialize
+  #   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
+  #   @param [Symbol,String] format specifies output format
+  #   @return [String] serialized data
+  # @overload serialize(obj, io, pretty: false, format: Serializable.default_format)
+  #   @param [Object] obj object to serialize
+  #   @param [IO] io output stream (IO(-like object)) to write serialized data to
+  #   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
+  #   @param [Symbol,String] format specifies output format
+  #   @return [IO]
+  def self.serialize(obj, io = nil, pretty: false, format: Serializable.default_format)
+    Serializable.serialize(obj, io, pretty: pretty, format: format)
+  end
+
+  # Deserializes object from source data
+  # @param [IO,String] source source data (String or IO(-like object))
+  # @param [Symbol, String] format data format of source
+  # @return [Object] deserialized object
+  def self.deserialize(source, format: Serializable.default_format)
+    Serializable.deserialize(source, format: format)
+  end
 
 end # module FIRM
 
