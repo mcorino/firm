@@ -2,6 +2,10 @@ begin
   require 'bigdecimal'
 rescue LoadError
 end
+begin
+  require 'nokogiri'
+rescue LoadError
+end
 require 'firm'
 
 module SerializerTestMixin
