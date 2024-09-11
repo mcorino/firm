@@ -9,6 +9,7 @@ dependencies.
 When the `nokogiri` gem is installed (and loaded) XML (de-)serializing will also be available.
 
 FIRM supports (de-)serializing many core Ruby objects out of the box including:
+
 - `NilClass`
 - `TrueClass` & `FalseClass`
 - `Integer`
@@ -49,7 +50,8 @@ Installing the `nokogiri` gem is optional to enable the XML serialization format
 
 ### Serialize an array of objects to JSON string
 
-```ruby
+```
+ruby
 require 'firm'
 
 a = [1, '2', :three, 4.321]

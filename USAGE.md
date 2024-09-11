@@ -24,21 +24,42 @@ class method (this includes to core Ruby classes supported out of the box).
 
 The `#serialize` method has the following signature.
 
-```ruby
-# Serialize this object
-# @overload serialize(pretty: false, format: Serializable.default_format)
-#   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
-#   @param [Symbol,String] format specifies output format
-#   @return [String] serialized data
-# @overload serialize(io, pretty: false, format: Serializable.default_format)
-#   @param [IO] io output stream to write serialized data to
-#   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
-#   @param [Symbol,String] format specifies output format
-#   @return [IO]
-def serialize(io = nil, pretty: false, format: Serializable.default_format)
-  # ...
-end
-```
+> ```ruby
+> def serialize(pretty: false, format: Serializable.default_format)
+> def serialize(io, pretty: false, format: Serializable.default_format)
+> ```
+> Serialize this object.
+> 
+> **Overloads**
+> 
+>> `serialize(pretty: false, format: Serializable.default_format)`
+>> 
+>> Returns serialized data.
+>>
+>> **Parameters:**
+>>
+>> - `pretty` (Boolean) (defaults to: `false`) - if true specifies to generate pretty formatted output if possible 
+>> - `format` (Symbol, String) (defaults to: `Serializable.default_format`) - specifies output format
+>>
+>> **Returns:**
+>>
+>> - (String) - serialized data 
+>
+> ---
+>
+>> `serialize(io, pretty: false, format: Serializable.default_format)`
+>>
+>> Writes serialized data to given stream.
+>>
+>> **Parameters:**
+>>
+>> - `io` (IO) - IO(-like) object to write serialized data to 
+>> - `pretty` (Boolean) (defaults to: `false`) - if true specifies to generate pretty formatted output if possible
+>> - `format` (Symbol, String) (defaults to: `Serializable.default_format`) - specifies output format
+>>
+>> **Returns:**
+>>
+>> - (String) - serialized data
 
 Out of the box the default format will be `:json`. This format can be overruled either by providing the `format`
 argument to the `#serialize` method or by altering the `FIRM::Serializable.default_form` setting process wide
@@ -58,15 +79,19 @@ before the `firm` gem the `:xml` format will be available as well.
 
 The `#deserialization` class method has the following signature.
 
-```ruby
-  # Deserializes object from source data
-  # @param [IO,String] source source data (String or IO(-like object))
-  # @param [Symbol, String] format data format of source
-  # @return [Object] deserialized object
-  def self.deserialize(source, format: Serializable.default_format)
-    # ...
-  end
-```
+> ```ruby
+>   def self.deserialize(source, format: Serializable.default_format)
+> ```
+>  Deserializes object from source data
+>
+> **Parameters:**
+> 
+> - `source` (IO,String) - source data (String or IO(-like object))
+> - `format` (Symbol, String) - data format of source
+> 
+> **Returns:** 
+> 
+> - (Object) - deserialized object
 
 As said this method is available as a class method on any serializable class but in addition it is also available on the
 `FIRM` module itself (see example below).
@@ -149,41 +174,79 @@ Including the `FIRM::Serializable` module extends the including class with a num
 
 To define a serializable property for a class the `#property` method can be used which has the following signature.
 
-```ruby
-      # Adds (a) serializable property(-ies) for instances of his class (and derived classes)
-      # @overload property(*props, force: false)
-      #   Specifies one or more serialized properties.
-      #   The serialization framework will determine the availability of setter and getter methods
-      #   automatically by looking for methods <code>"#{prop_id}=(v)"</code>, <code>"set_#{prop_id}(v)"</code> or <code>"#{prop}(v)"</code>
-      #   for setters and <code>"#{prop_id}()"</code> or <code>"get_#{prop_id}"</code> for getters.
-      #   @param [Symbol,String] props one or more ids of serializable properties
-      #   @param [Boolean] force overrides any #disable_serialize for the properties specified
-      # @overload property(hash, force: false)
-      #   Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
-      #   Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter).
-      #   @note Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
-      #         to be able to support setting explicit nil values.
-      #   @param [Hash] hash a hash of pairs of property ids and getter/setter procs
-      #   @param [Boolean] force overrides any #disable_serialize for the properties specified
-      # @overload property(*props, force: false, handler: nil, &block)
-      #   Specifies one or more serialized properties with a getter/setter handler proc/method/block.
-      #   The getter/setter proc or block should accept either 2 (property id and object for getter) or 3 arguments
-      #   (property id, object and value for setter) and is assumed to handle getter/setter requests
-      #   for all specified properties.
-      #   The getter/setter method should accept either 1 (property id for getter) or 2 arguments
-      #   (property id and value for setter) and is assumed to handle getter/setter requests
-      #   for all specified properties.
-      #   @note Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
-      #         to be able to support setting explicit nil values.
-      #   @param [Symbol,String] props one or more ids of serializable properties
-      #   @param [Boolean] force overrides any #disable_serialize for the properties specified
-      #   @yieldparam [Symbol,String] id property id
-      #   @yieldparam [Object] obj object instance
-      #   @yieldparam [Object] val optional property value to set in case of setter request
-      def self.property(*props, **kwargs, &block)
-        # ...
-      end
-```
+> ```ruby
+> def self.property(*props, force: false)
+> def self.property(hash, force: false)
+> def self.property(*props, force: false, handler: nil, &block)
+> ```
+> Adds (a) serializable property(-ies) for instances of his class (and derived classes)
+> 
+> **Overloads:**
+> 
+>> `property(*props, force: false)`
+>>
+>> Specifies one or more serialized properties.
+>>
+>> The serialization framework will determine the availability of setter and getter methods
+>> automatically by looking for methods <code>">>{prop_id}=(v)"</code>, <code>"set_>>{prop_id}(v)"</code> or <code>">>{prop}(v)"</code>
+>> for setters and <code>">>{prop_id}()"</code> or <code>"get_>>{prop_id}"</code> for getters.
+>>
+>> **Parameters:**
+>>
+>> - `props` (Symbol,String) - one or more ids of serializable properties
+>> - `force` (Boolean) - overrides any `#disable_serialize` for the properties specified
+>> 
+>> **Returns:**
+>>
+>> - (undefined)
+>
+> ---
+>
+>> `property(hash, force: false)`
+>>
+>> Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
+>> Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter).
+>> 
+>>> **NOTE** Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
+>>> to be able to support setting explicit nil values.
+>>
+>> **Parameters:**
+>>
+>> - `hash` (Hash) - a hash of pairs of property ids and getter/setter procs
+>> - `force` (Boolean) -  overrides any `#disable_serialize` for the properties specified
+>>
+>> **Returns:**
+>>
+>> - (undefined)
+>
+> ---
+>
+>> `property(*props, force: false, handler: nil, &block)`
+>>
+>> Specifies one or more serialized properties with a getter/setter handler proc/method/block.
+>> The getter/setter proc or block should accept either 2 (property id and object for getter) or 3 arguments
+>> (property id, object and value for setter) and is assumed to handle getter/setter requests
+>> for all specified properties.
+>> The getter/setter method should accept either 1 (property id for getter) or 2 arguments
+>> (property id and value for setter) and is assumed to handle getter/setter requests
+>> for all specified properties.
+>>> **NOTE** Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
+>>> to be able to support setting explicit nil values.
+>>
+>> **Parameters:**
+>>
+>> - `props` (Symbol,String) - one or more ids of serializable properties
+>> - `force` (Boolean) - overrides any `#disable_serialize` for the properties specified
+>>
+>> **Yield Parameters:**
+>>
+>> - `id` (Symbol,String) - property id
+>> - `obj` (Object) - object instance
+>> - `val` (Object) - optional property value to set in case of setter request
+>>
+>> **Returns:**
+>>
+>> - (undefined)
 
 The simplest property declaration takes this form.
 
@@ -367,13 +430,19 @@ In some cases a derived class may need to suppress serialization of a property o
 derived class may for some reason (re-)initialize this property itself depending on some external factor.
 For these cases the `#excluded_property` method is available with the following signature:
 
-```ruby
-# Excludes a serializable property for instances of this class.
-# @param [Symbol,String] props one or more ids of serializable properties
-def self.excluded_property(*props)
-  # ...
-end
-```
+> ```ruby
+> def self.excluded_property(*props)
+> ```
+>
+> Excludes a serializable property for instances of this class.
+> 
+> **Parameters:**
+> 
+> - `props` (Symbol,String) - one or more ids of serializable properties
+> 
+> **Returns:**
+> 
+> - (undefined)
 
 The following example showcases use of this property.
 
@@ -475,14 +544,16 @@ is persisted this fixed item should not be serialized as the derived constructor
 For these cases the `#disable_serialize` instance method is available for any **user defined** serializable class. This
 method has the following signature.
 
-```ruby
-# Disables serialization for this object as a single property or as part of a property container
-# (array or set).
-# @return [void]
-def disable_serialize
-  # ...
-end
-```
+> ```ruby
+> def disable_serialize
+> ```
+>
+> Disables serialization for this object as a single property or as part of a property container
+> (array or set).
+> 
+> **Returns:**
+> 
+> - (undefined)
 
 The following example showcases using this method.
 
@@ -823,19 +894,41 @@ it's serialized properties have been deserialized and restored.
 Deserialization finalizers can be defined using the `#define_deserialize_finalizer` class method which has the 
 following signature:
 
-```ruby
-  # Defines a finalizer method/proc/block to be called after all properties
-  # have been deserialized and restored.
-  # Procs or blocks will be called with the deserialized object as the single argument.
-  # Unbound methods will be bound to the deserialized object before calling.
-  # Explicitly specifying nil will undefine the finalizer.
-  # @param [Symbol, String, Proc, UnboundMethod, nil] meth name of instance method, proc or method to call for finalizing
-  # @yieldparam [Object] obj deserialized object to finalize
-  # @return [void]
-  def self.define_deserialize_finalizer(meth=nil, &block)
-    # ...
-  end
-```
+> ```ruby
+> def self.define_deserialize_finalizer(meth)
+> def self.define_deserialize_finalizer(&block)
+> ```
+>
+> Defines a finalizer method/proc/block to be called after all properties
+> have been deserialized and restored.
+>
+> Procs or blocks will be called with the deserialized object as the single argument. <br>
+> Unbound methods will be bound to the deserialized object before calling. <br>
+> Explicitly specifying nil will undefine the finalizer.
+> 
+> **Overloads**
+> 
+>> `define_deserialize_finalizer(meth)`
+>> 
+>> **Parameters:**
+>>
+>> - `meth` (Symbol, String, Proc, UnboundMethod, nil) - name of instance method, proc or method to call for finalizing
+>> 
+>> **Returns:**
+>>
+>> - (undefined)
+> 
+> ---
+>
+>> `define_deserialize_finalizer(&block)`
+>>
+>> **Yield Parameters:**
+>>
+>> - `obj` (Object) - deserialized object to finalize
+>>
+>> **Returns:**
+>>
+>> - (undefined)
 
 #### Default finalizer
 
