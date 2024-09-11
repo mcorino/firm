@@ -643,6 +643,238 @@ extpath2 = ExtendedPath.deserialize(extpath_json)
 
 ### Object aliases
 
+The requirements in the previous section could also have been met by using persisted object aliases which by default
+are only supported with YAML.
+FIRM however implements functionality to also allow object aliasing with JSON and XML using one simple interface.
+
+When applying aliasing the FIRM code will not serialize multiple copies of an object instance referenced multiple
+times in a dataset being serialized but instead it will serialize a single copy the first time the instance is
+encountered with a special 'anchor' id attached and serialize only shallow 'alias' references to this 'anchor' id for any
+other reference of the same instance encountered while serializing.
+On deserialization the same instance will be restored for the 'anchored' copy as well as any 'alias' references.
+
+Aliasing must be explicitly allowed for a **user defined** serializable class (which is also the default for the
+latest Psych YAML releases) to be applied on (de-)serialization.
+
+The following example showcases this functionality.
+
+```ruby
+require 'firm'
+
+class Point
+  # define the class as serializable 
+  include FIRM::Serializable
+
+  # declare the serializable properties of instances of this class
+  properties :x, :y
+
+  # allow aliases for persisted points
+  allow_aliases
+  
+  # allow instantiation using the default ctor (no args)
+  # (custom creation schemes can be defined)
+  def initialize(*args)
+    if args.empty?
+      @x = @y = 0
+    else
+      @x, @y = *args
+    end
+  end
+
+  # define the default getter/setter support FIRM will use when (de-)serializing properties
+  attr_accessor :x, :y
+end
+
+class Path
+  # declare serializable
+  include FIRM::Serializable
+  
+  property :points
+  
+  def initialize(points = [])
+    @points = points
+  end
+  
+  attr_reader :points
+  
+  def set_points(pts)
+    @points.concat(pts)
+  end
+  private :set_points
+end
+
+class ExtendedPath < Path
+  
+  # declare a serialization property
+  property origin: :serialize_origin
+  
+  def initialize(points = [], origin: nil)
+    super(points)
+    self.origin = origin
+  end
+  
+  attr_reader :origin
+  
+  def origin=(org)
+    # delete any existing origin
+    @points.delete(@origin) if @origin
+    # set the new origin
+    @origin = org
+    if @origin
+      # insert this as a origin point
+      @points.insert(0, @origin)
+    end
+  end
+  
+  def serialize_origin(*val)
+    @origin = *val unless val.empty?
+    @origin
+  end
+  
+end
+
+# serializing a regular Path will persist all it's points
+path = Path.new([Point.new(10,10), Point.new(20,20), Point.new(30,30)])
+path_json = path.serialize
+
+# serializing an ExtendedPath will persist all points and the assigned origin as a separate (aliased) property
+extpath = ExtendedPath.new([Point.new(15,15), Point.new(25,25), Point.new(35,35)], origin: Point.new(1,2))
+extpath_json = extpath.serialize
+
+# deserializing both object will still restore them as they were
+path2 = Path.deserialize(path_json)
+extpath2 = ExtendedPath.deserialize(extpath_json)
+```
+
+FIRM aliasing support is somewhat less efficient than the builtin support offered by YAML so as it will add (a small 
+bit of) additional persisted data for every instance of aliasable classes.
+Therefor this functionality might be best suited for persisting larger objects that are often (always) aliased. For 
+situations with small objects which are only incidentally referenced multiple times the approach from the previous
+section might be best suited.
+
 ### Custom construction for deserialization 
 
+By default FIRM deserialization will construct class instances for deserialization by calling the default constructor
+for a class (no arguments), i.e. `instance = klass.new`.
+This may not always be appropriate for various reasons. For these cases it is possible to overload the default 
+construction method for **user defined** serializable classes.
+
+In case customized construction is required overload the `#create_for_deserialize(data)` class method as shown in 
+the following example.
+
+```ruby
+require 'firm'
+
+# Singleton class without public constructor
+class Singleton
+  
+  include FIRM::Serializable
+  
+  class << self
+    private :new
+
+    def instance
+      @instance ||= self.new
+    end
+  end
+  
+  
+  # Overload the deserialization constructor.
+
+  # Creates a new instance for subsequent deserialization and optionally initializes
+  # it using the given data (hash-like) object.
+  # The default implementation creates a new instance using the default constructor
+  # (no arguments, no initialization) and leaves the initialization to a subsequent call
+  # to the instance method #from_serialized(data).
+  # Classes that do not support a default constructor can override this class method and
+  # implement a custom creation scheme.
+  # @param [Object] data hash-like object containing deserialized property data (symbol keys)
+  # @return [Object] the newly created object
+  def self.create_for_deserialize(data)
+    # create a new object for deserialization
+    instance
+  end
+  
+end
+```
+
 ### Deserialization finalizers
+
+User defined classes may also depend on non-trivial initialization at construction time derived from initial 
+construction arguments. In these cases simple default construction followed by property restoration may also
+not suffice.
+
+In essence there are three options to handle these cases.
+
+The first option is to define customized, non-trivial, serialization handlers for certain properties that will
+not only handle property restoration but may also (re-)initialize dependent, non-persisted, attributes (as in the 
+case of the first `ExtendedPath` example above).
+
+This approach however has limits in that it does not scale to cases where the dependent, non-persisted, attributes
+rely on more than one restored property.
+For these cases the approach of overloading the `#create_for_deserialize` method may be more appropriate.
+
+In cases which involve restoring large amounts of persisted properties this may however be cumbersome.
+Instead of overloading `#create_for_deserialize` there is therefor another customization option available that
+allows to define deserialization finalizers.
+A deserialization finalizer is a method, proc or block that will be called for a deserialized object after all 
+it's serialized properties have been deserialized and restored.
+
+Deserialization finalizers can be defined using the `#define_deserialize_finalizer` class method which has the 
+following signature:
+
+```ruby
+  # Defines a finalizer method/proc/block to be called after all properties
+  # have been deserialized and restored.
+  # Procs or blocks will be called with the deserialized object as the single argument.
+  # Unbound methods will be bound to the deserialized object before calling.
+  # Explicitly specifying nil will undefine the finalizer.
+  # @param [Symbol, String, Proc, UnboundMethod, nil] meth name of instance method, proc or method to call for finalizing
+  # @yieldparam [Object] obj deserialized object to finalize
+  # @return [void]
+  def self.define_deserialize_finalizer(meth=nil, &block)
+    # ...
+  end
+```
+
+#### Default finalizer
+
+By default FIRM assumes that with any user defined serializable class that defines a `#create` instance method with 
+no arguments this method is intended als an initialization finalizer and will use that method as the deserialization
+finalizer unless defined differently by a call to `#define_deserialize_finalizer`.
+
+The following example shows a serializable class with a `#create` finalizer.
+
+```ruby
+class CreateFinalizer
+    include FIRM::Serializable
+
+    property :value
+
+    def initialize(val = nil)
+      @value = val
+      create if val
+    end
+
+    # default finalizer
+    def create
+      @symbol = case @value
+                when 1
+                  :one
+                when 2
+                  :two
+                when 3
+                  :three
+                else
+                  :none
+                end
+    end
+
+    attr_reader :value, :symbol
+
+    def set_value(v)
+      @value = v
+    end
+    private :set_value
+end
+```
