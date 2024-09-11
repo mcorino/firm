@@ -712,4 +712,149 @@ module SerializerTestMixin
     assert_not_equal(container.map[:ten].ref3, obj_new.last.ref3)
   end
 
+  class CreateFinalizer
+
+    include FIRM::Serializable
+
+    property :value
+
+    def initialize(val = 0)
+      @value = val
+      create
+    end
+
+    # default finalizer
+    def create
+      @symbol = case @value
+                when 1
+                  :one
+                when 2
+                  :two
+                when 3
+                  :three
+                else
+                  :none
+                end
+    end
+
+    attr_reader :value, :symbol
+
+    def set_value(v)
+      @value = v
+    end
+    private :set_value
+
+  end
+
+  class BlockFinalizer
+
+    include FIRM::Serializable
+
+    property :value
+
+    define_deserialize_finalizer do |obj|
+      obj.symbol = case obj.value
+                   when 1
+                     :one
+                   when 2
+                     :two
+                   when 3
+                     :three
+                   else
+                     :none
+                   end
+    end
+
+    def initialize(val = 0)
+      @value = val
+      @symbol = case @value
+                when 1
+                  :one
+                when 2
+                  :two
+                when 3
+                  :three
+                else
+                  :none
+                end
+    end
+
+    attr_reader :value
+    attr_accessor :symbol
+
+    def set_value(v)
+      @value = v
+    end
+    private :set_value
+  end
+
+  class MethodFinalizer
+
+    include FIRM::Serializable
+
+    property :value
+
+    define_deserialize_finalizer :finalize_deserialize
+
+    def initialize(val = 0)
+      @value = val
+      @symbol = case @value
+                when 1
+                  :one
+                when 2
+                  :two
+                when 3
+                  :three
+                else
+                  :none
+                end
+    end
+
+    attr_reader :value, :symbol
+
+    # default finalizer
+    def finalize_deserialize
+      @symbol = case @value
+                when 1
+                  :one
+                when 2
+                  :two
+                when 3
+                  :three
+                else
+                  :none
+                end
+    end
+    private :finalize_deserialize
+
+    def set_value(v)
+      @value = v
+    end
+    private :set_value
+
+  end
+
+  def test_deserialize_finalizers
+    obj = CreateFinalizer.new(2)
+    obj_serial = obj.serialize
+    obj_new = nil
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
+    assert_equal(obj.value, obj_new.value)
+    assert_equal(obj.symbol, obj_new.symbol)
+
+    obj = BlockFinalizer.new(2)
+    obj_serial = obj.serialize
+    obj_new = nil
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
+    assert_equal(obj.value, obj_new.value)
+    assert_equal(obj.symbol, obj_new.symbol)
+
+    obj = MethodFinalizer.new(2)
+    obj_serial = obj.serialize
+    obj_new = nil
+    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
+    assert_equal(obj.value, obj_new.value)
+    assert_equal(obj.symbol, obj_new.symbol)
+  end
+
 end
