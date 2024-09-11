@@ -718,9 +718,9 @@ module SerializerTestMixin
 
     property :value
 
-    def initialize(val = 0)
+    def initialize(val = nil)
       @value = val
-      create
+      create if val
     end
 
     # default finalizer
