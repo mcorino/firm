@@ -329,6 +329,7 @@ module FIRM
       #   for setters and <code>"#{prop_id}()"</code> or <code>"get_#{prop_id}"</code> for getters.
       #   @param [Symbol,String] props one or more ids of serializable properties
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @return [void]
       # @overload property(hash, force: false)
       #   Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
       #   @example
@@ -347,6 +348,7 @@ module FIRM
       #         to be able to support setting explicit nil values.
       #   @param [Hash] hash a hash of pairs of property ids and getter/setter procs
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @return [void]
       # @overload property(*props, force: false, handler: nil, &block)
       #   Specifies one or more serialized properties with a getter/setter handler proc/method/block.
       #   The getter/setter proc or block should accept either 2 (property id and object for getter) or 3 arguments
@@ -373,6 +375,7 @@ module FIRM
       #   @yieldparam [Symbol,String] id property id
       #   @yieldparam [Object] obj object instance
       #   @yieldparam [Object] val optional property value to set in case of setter request
+      #   @return [void]
       def property(*props, **kwargs, &block)
         forced = !!kwargs.delete(:force)
         if block || kwargs[:handler]
@@ -403,6 +406,7 @@ module FIRM
       # (mostly/only useful to exclude properties from base classes which
       # do not require serialization for derived class)
       # @param [Symbol,String] props one or more ids of serializable properties
+      # @return [void]
       def excluded_property(*props)
         excluded_serializer_properties.merge props.flatten.collect { |prop| prop }
       end
