@@ -360,3 +360,289 @@ end
 ```
 
 The `#property` method is also aliased as `#properties` and `#contains` for syntactical convenience. 
+
+### Excluding a base property
+
+In some cases a derived class may need to suppress serialization of a property of it's base class because the 
+derived class may for some reason (re-)initialize this property itself depending on some external factor.
+For these cases the `#excluded_property` method is available with the following signature:
+
+```ruby
+# Excludes a serializable property for instances of this class.
+# @param [Symbol,String] props one or more ids of serializable properties
+def self.excluded_property(*props)
+  # ...
+end
+```
+
+The following example showcases use of this property.
+
+```ruby
+require 'firm'
+
+Point = Struct.new(:x, :y) do |struct_klass|
+  def +(other)
+    Point.new(self.x + other.x, self.y + other.y)
+  end
+end
+Size = Struct.new(:width, :height)
+
+class Rect
+  # declare serializable
+  include FIRM::Serializable
+
+  # define serializable properties
+  property :position, :size
+
+  def initialize(*args)
+    if args.empty?
+      @position = @size = nil
+    else
+      @position, @size = *args
+    end
+  end
+
+  attr_accessor :position, :size
+end
+
+class RelativeRect < Rect
+
+  # no need to include mixin since this is inherited
+
+  class << self
+
+    def origin
+      @origin ||= Point.new(0, 0)
+    end
+    
+    def origin=(org)
+      @origin = org
+    end
+
+  end
+
+  # persist new property
+  property :offset
+
+  # exclude base property :position
+  excluded_property :position
+
+  def initialize(*args)
+    super()
+    unless args.empty?
+      offs, @size = *args
+      set_offset(offs)
+    end
+  end
+
+  attr_reader :offset
+
+  def set_offset(offs)
+    @offset = offs
+    @position = self.class.origin + @offset
+  end
+
+  private :position=
+
+end
+
+# set the current origin for relative rectangles
+RelativeRect.origin = Point.new(10,10) 
+
+# serializing a regular Rect instance will persist position and size
+rect = Rect.new(Point.new(33,33), Size.new(10, 40))
+rect_json = rect.serialize
+
+# while serializing a RelativeRect will persist offset and size
+relrect = RelativeRect.new(Point.new(5,5), Size.new(20, 65))
+relrect_json = relrect.serialize
+
+# Set new origin for relative rectangles
+RelativeRect.origin = Point.new(20,40)
+
+# deserializing the regular Rect will restore it as it was
+rect2 = Rect.deserialize(rect_json)
+
+# deserializing the RelativeRect will restore it at a new position
+relrect2 = RelativeRect.deserialize(relrect_json)
+```
+
+### Selective serialization
+
+In other cases a derived class may add a fixed item to a base class collection. When the base collection
+is persisted this fixed item should not be serialized as the derived constructor would always add the fixed item.
+
+For these cases the `#disable_serialize` instance method is available for any **user defined** serializable class. This
+method has the following signature.
+
+```ruby
+# Disables serialization for this object as a single property or as part of a property container
+# (array or set).
+# @return [void]
+def disable_serialize
+  # ...
+end
+```
+
+The following example showcases using this method.
+
+```ruby
+require 'firm'
+
+class Point
+  # define the class as serializable 
+  include FIRM::Serializable
+
+  # declare the serializable properties of instances of this class
+  properties :x, :y
+
+  # allow instantiation using the default ctor (no args)
+  # (custom creation schemes can be defined)
+  def initialize(*args)
+    if args.empty?
+      @x = @y = 0
+    else
+      @x, @y = *args
+    end
+  end
+
+  # define the default getter/setter support FIRM will use when (de-)serializing properties
+  attr_accessor :x, :y
+end
+
+class Path
+  # declare serializable
+  include FIRM::Serializable
+  
+  property :points
+  
+  def initialize(points = [])
+    @points = points
+  end
+  
+  attr_reader :points
+  
+  def set_points(pts)
+    @points.concat(pts)
+  end
+  private :set_points
+end
+
+class ExtendedPath < Path
+  
+  def initialize(points = [])
+    super
+    # create a fixed point
+    pt = Point.new(1, 2)
+    # disable serializing this instance 
+    pt.disable_serialize
+    # insert this as a fixed origin point
+    @points.insert(0, pt)
+  end
+  
+end
+
+# serializing a regular Path will persist all it's points
+path = Path.new([Point.new(10,10), Point.new(20,20), Point.new(30,30)])
+path_json = path.serialize
+
+# serializing an ExtendedPath will persist all points except the fixed origin
+extpath = ExtendedPath.new([Point.new(15,15), Point.new(25,25), Point.new(35,35)])
+extpath_json = extpath.serialize
+
+# deserializing both object will still restore them as they were
+path2 = Path.deserialize(path_json)
+extpath2 = ExtendedPath.deserialize(extpath_json)
+```
+
+An additional requirement may be to persist the additional item from the derived class as it is not fixed but rather
+externally defined.
+This is where the `:force` parameter of the `#property` method is of use as shown in the following example.
+
+```ruby
+require 'firm'
+
+class Point
+  # define the class as serializable 
+  include FIRM::Serializable
+
+  # declare the serializable properties of instances of this class
+  properties :x, :y
+
+  # allow instantiation using the default ctor (no args)
+  # (custom creation schemes can be defined)
+  def initialize(*args)
+    if args.empty?
+      @x = @y = 0
+    else
+      @x, @y = *args
+    end
+  end
+
+  # define the default getter/setter support FIRM will use when (de-)serializing properties
+  attr_accessor :x, :y
+end
+
+class Path
+  # declare serializable
+  include FIRM::Serializable
+  
+  property :points
+  
+  def initialize(points = [])
+    @points = points
+  end
+  
+  attr_reader :points
+  
+  def set_points(pts)
+    @points.concat(pts)
+  end
+  private :set_points
+end
+
+class ExtendedPath < Path
+  
+  # declare a serialization property that must **always** be persisted
+  property :origin, force: true
+  
+  def initialize(points = [], origin: nil)
+    super(points)
+    self.origin = origin
+  end
+  
+  attr_reader :origin
+  
+  def origin=(org)
+    # delete any existing origin
+    @points.delete_at(0) if @origin
+    # set the new origin
+    @origin = org
+    if @origin
+      # disable serializing this instance if defined
+      @origin.disable_serialize
+      # insert this as a origin point
+      @points.insert(0, @origin)
+    end
+  end
+  
+end
+
+# serializing a regular Path will persist all it's points
+path = Path.new([Point.new(10,10), Point.new(20,20), Point.new(30,30)])
+path_json = path.serialize
+
+# serializing an ExtendedPath will persist all points with the assigned origin as a separate property
+extpath = ExtendedPath.new([Point.new(15,15), Point.new(25,25), Point.new(35,35)], origin: Point.new(1,2))
+extpath_json = extpath.serialize
+
+# deserializing both object will still restore them as they were
+path2 = Path.deserialize(path_json)
+extpath2 = ExtendedPath.deserialize(extpath_json)
+```
+
+### Object aliases
+
+### Custom construction for deserialization 
+
+### Deserialization finalizers

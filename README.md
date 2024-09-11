@@ -147,7 +147,7 @@ IRB output:
  :x=,
  :y,
  :y=]
->>>>=> 
+=> 
 {:topleft=>
   #<Point:0x00007f6da9902518
    @x=
