@@ -426,14 +426,15 @@ module FIRM
       # have been deserialized and restored.
       # Procs or blocks will be called with the deserialized object as the single argument.
       # Unbound methods will be bound to the deserialized object before calling.
-      # @param [Symbol, String, Proc, UnboundMethod] meth name of instance method, proc or method to call for finalizing
+      # Explicitly specifying nil will undefine the finalizer.
+      # @param [Symbol, String, Proc, UnboundMethod, nil] meth name of instance method, proc or method to call for finalizing
       # @yieldparam [Object] obj deserialized object to finalize
       # @return [void]
       def define_deserialize_finalizer(meth=nil, &block)
-        if block and not meth
+        if block and meth.nil?
           # the given block should expect and use the given object instance
           set_deserialize_finalizer(block)
-        elsif meth and not block
+        elsif meth and block.nil?
           h_meth = case meth
                    when ::Symbol, ::String
                      Serializable::MethodResolver.new(self, meth)
@@ -459,6 +460,8 @@ module FIRM
                                   caller
                    end
           set_deserialize_finalizer(h_meth)
+        elsif meth.nil? and block.nil?
+          set_deserialize_finalizer(nil)
         else
           Kernel.raise ArgumentError,
                        "Specify deserialize finalizer with a method, name, proc OR block",
