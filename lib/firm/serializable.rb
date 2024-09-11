@@ -422,9 +422,49 @@ module FIRM
         self.new
       end
 
-      # Defines a finalizer method/proc/block to be called after all
+      # Defines a finalizer method/proc/block to be called after all properties
+      # have been deserialized and restored.
+      # Procs or blocks will be called with the deserialized object as the single argument.
+      # Unbound methods will be bound to the deserialized object before calling.
+      # @param [Symbol, String, Proc, UnboundMethod] meth name of instance method, proc or method to call for finalizing
+      # @yieldparam [Object] obj deserialized object to finalize
+      # @return [void]
       def define_deserialize_finalizer(meth=nil, &block)
-        self.set_deserialize_finalizer(meth, &block)
+        if block and not meth
+          # the given block should expect and use the given object instance
+          set_deserialize_finalizer(block)
+        elsif meth and not block
+          h_meth = case meth
+                   when ::Symbol, ::String
+                     Serializable::MethodResolver.new(self, meth)
+                   when ::Proc
+                     # check arity == 1
+                     if meth.arity != 1
+                       Kernel.raise ArgumentError,
+                                    "Deserialize finalizer Proc should expect a single argument",
+                                    caller
+                     end
+                     meth
+                   when ::UnboundMethod
+                     # check arity == 0
+                     if meth.arity>0
+                       Kernel.raise ArgumentError,
+                                    "Deserialize finalizer method should not expect any argument",
+                                    caller
+                     end
+                     ->(obj) { meth.bind(obj).call }
+                   else
+                     Kernel.raise ArgumentError,
+                                  "Specify deserialize finalizer with a method, name, proc OR block",
+                                  caller
+                   end
+          set_deserialize_finalizer(h_meth)
+        else
+          Kernel.raise ArgumentError,
+                       "Specify deserialize finalizer with a method, name, proc OR block",
+                       caller
+        end
+        nil
       end
       alias :deserialize_finalizer :define_deserialize_finalizer
 
@@ -520,6 +560,33 @@ module FIRM
       self[format].load(::IO === source || source.respond_to?(:read) ? source.read : source)
     end
 
+    # Small utility class for delayed method resolving
+    class MethodResolver
+      def initialize(klass, mtd_id, default=false)
+        @klass = klass
+        @mtd_id = mtd_id
+        @default = default
+      end
+
+      def resolve
+        m = @klass.instance_method(@mtd_id) rescue nil
+        if m
+          # check arity == 0
+          if m.arity>0
+            unless @default
+              Kernel.raise ArgumentError,
+                           "Deserialize finalizer method #{@klass}#{@mtd_id} should not expect any argument",
+                           caller
+            end
+          else
+            return ->(obj) { m.bind(obj).call }
+          end
+        end
+        nil
+      end
+    end
+
+
     def self.included(base)
       ::Kernel.raise RuntimeError, "#{self} should only be included in classes" if base.instance_of?(::Module)
 
@@ -541,55 +608,31 @@ module FIRM
         def excluded_serializer_properties
           @excluded_serializer_props ||= ::Set.new
         end
-        def set_deserialize_finalizer(meth=nil, &block)
-          if block and not meth
-            # the given block should expect and use the given object instance
-            @finalize_from_deserialized = block
-          elsif meth and not block
-            h_meth = case meth
-                     when Symbol, String then self.instance_method(meth)
-                     when Proc then meth
-                     when UnboundMethod then meth
-                     end
-            # bind unbound method with given object instance to call
-            if UnboundMethod === h_meth
-              # check arity == 0
-              if h_meth.arity>0
-                Kernel.raise ArgumentError,
-                             "Deserialize finalizer method should not expect any argument",
-                             caller
-              end
-              @finalize_from_deserialized = ->(obj) { h_meth.bind(obj).call }
-            else
-              # check arity == 1
-              if h_meth.arity != 1
-                Kernel.raise ArgumentError,
-                             "Deserialize finalizer Proc should expect a single argument",
-                             caller
-              end
-              @finalize_from_deserialized = h_meth
-            end
+        def set_deserialize_finalizer(fin)
+          @finalize_from_deserialized = fin
+        end
+        private :set_deserialize_finalizer
+        def get_deserialize_finalizer
+          case @finalize_from_deserialized
+          when Serializable::MethodResolver
+            @finalize_from_deserialized = @finalize_from_deserialized.resolve
           else
-            Kernel.raise ArgumentError,
-                         "Specify deserialize finalizer with a method, name, proc OR block",
-                         caller
+            @finalize_from_deserialized
           end
         end
-        def get_deserialize_finalizer
-          @finalize_from_deserialized
+        private :get_deserialize_finalizer
+        def find_deserialize_finalizer
+          get_deserialize_finalizer
         end
         def allows_aliases?
           false # by default not allowed
         end
       end
 
-      # Check if the derived class has the default deserialize finalizer method defined (a #create method
-      # without arguments) defined. If so install that method as the deserialize finalizer.
-      if base.method_defined?(:create, false)
-        create_mtd = base.instance_method :create
-        if create_mtd.arity == 0
-          base.set_deserialize_finalizer(create_mtd)
-        end
+      base.class_eval do
+        # Check if the class has the default deserialize finalizer method defined (a #create method
+        # without arguments) defined. If so install that method as the deserialize finalizer.
+        set_deserialize_finalizer(Serializable::MethodResolver.new(self, :create, true))
       end
 
       # add class methods
@@ -610,7 +653,7 @@ module FIRM
         protected :from_serialized
 
         def finalize_from_serialized
-          if (f = self.class.get_deserialize_finalizer) 
+          if (f = self.class.find_deserialize_finalizer)
             f.call(self)
           end
           self
@@ -649,19 +692,16 @@ module FIRM
           end
           # add derived class support for deserialization finalizer
           derived.singleton_class.class_eval <<~__CODE
-            def get_deserialize_finalizer
-              @finalize_from_deserialized || #{derived.name}.superclass.get_deserialize_finalizer 
+            def find_deserialize_finalizer
+              get_deserialize_finalizer || #{derived.name}.superclass.find_deserialize_finalizer 
             end
           __CODE
 
           # Check if the derived class has the default deserialize finalizer method defined (a #create method
           # without arguments) defined. If so install that method as the deserialize finalizer (it is expected
           # this method will call any superclass finalizer that may be defined).
-          if derived.method_defined?(:create, false)
-            create_mtd = derived.instance_method :create
-            if create_mtd.arity == 0
-              derived.set_deserialize_finalizer(create_mtd)
-            end
+          derived.class_eval do
+            set_deserialize_finalizer(Serializable::MethodResolver.new(self, :create, true))
           end
 
           # register as serializable class
