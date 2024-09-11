@@ -399,11 +399,12 @@ module FIRM
       alias :properties :property
       alias :contains :property
 
-      # excludes a serializable property for instances of this class
+      # Excludes a serializable property for instances of this class.
       # (mostly/only useful to exclude properties from base classes which
-      #  do not require serialization for derived class)
+      # do not require serialization for derived class)
+      # @param [Symbol,String] props one or more ids of serializable properties
       def excluded_property(*props)
-        excluded_serializer_properties.merge props.flatten.collect { |prop| prop.to_s }
+        excluded_serializer_properties.merge props.flatten.collect { |prop| prop }
       end
       alias :excluded_properties :excluded_property
       alias :excludes :excluded_property
