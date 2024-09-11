@@ -254,11 +254,11 @@ module FIRM
 
       # Creates a new anchor registration and returns the anchor ID
       # @param [Object] object anchor instance
-      # @return [FIRM::Serializable::ID] anchor ID
+      # @return [Integer] anchor ID
       def create_anchor(object)
         anchors = class_anchors(object.class)
         raise Serializable::Exception, "Duplicate anchor creation for #{object}" if anchors.has_key?(object.object_id)
-        anchors[object.object_id] = Serializable::ID.new
+        anchors[object.object_id] = object.object_id
       end
 
       # Returns true if the object has an anchor registration, false otherwise.
@@ -269,7 +269,7 @@ module FIRM
 
       # Retrieves the anchor ID for an anchored object.
       # Returns nil if the object is not anchored.
-      # @return [nil,FIRM::Serializable::ID]
+      # @return [nil,Integer]
       def get_anchor(object)
         anchors = class_anchors(object.class)
         anchors[object.object_id]
@@ -299,7 +299,7 @@ module FIRM
       private :class_anchor_references
 
       # Registers a restored anchor object and it's ID.
-      # @param [FIRM::Serializable::ID] id anchor ID
+      # @param [Integer] id anchor ID
       # @param [Object] object anchor instance
       # @return [Object] anchor instance
       def restore_anchor(id, object)
@@ -309,7 +309,7 @@ module FIRM
       # Resolves a referenced anchor instance.
       # Returns the instance if found, nil otherwise.
       # @param [Class] klass aliasable class of the anchor instance
-      # @param [FIRM::Serializable::ID] id anchor id
+      # @param [Integer] id anchor id
       # @return [nil,Object]
       def resolve_anchor(klass, id)
         class_anchor_references(klass)[id]
