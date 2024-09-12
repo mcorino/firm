@@ -325,8 +325,8 @@ module FIRM
       # @overload property(*props, force: false)
       #   Specifies one or more serialized properties.
       #   The serialization framework will determine the availability of setter and getter methods
-      #   automatically by looking for methods <code>"#{prop_id}=(v)"</code>, <code>"set_#{prop_id}(v)"</code> or <code>"#{prop}(v)"</code>
-      #   for setters and <code>"#{prop_id}()"</code> or <code>"get_#{prop_id}"</code> for getters.
+      #   automatically by looking for methods <code>"#{prop_id}=(v)"</code>, <code>"#set_{prop_id}(v)"</code> or <code>"#{prop_id}(v)"</code>
+      #   for setters and <code>"#{prop_id}()"</code> or <code>"#get_{prop_id}"</code> for getters.
       #   @param [Symbol,String] props one or more ids of serializable properties
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
       #   @return [void]
@@ -343,7 +343,9 @@ module FIRM
       #                 obj.my_prop_b_getter
       #               },
       #       prop_c: :serialization_method)
-      #   Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter).
+      #   Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter) where the first
+      #   argument will always be the property owner's object instance and the second (in case of a setter proc) the
+      #   value to restore.
       #   @note Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
       #         to be able to support setting explicit nil values.
       #   @param [Hash] hash a hash of pairs of property ids and getter/setter procs
