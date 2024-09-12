@@ -1,4 +1,4 @@
-# CI wxRuby release workflow
+# CI FIRM release workflow
 name: Release build
 
 on:
