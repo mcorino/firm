@@ -1,13 +1,16 @@
 # FIRM::Serializer - Ruby core serializer extensions
 # Copyright (c) M.J.N. Corino, The Netherlands
 
-# we do not include FIRM::Serializer::SerializeMethod here as that would
-# also extend these classes with the engine specific extension that we do not
-# need nor want here
-# Instead we define a slim mixin module to extend (complex) core classes
 
 module FIRM
   module Serializable
+
+    # FIRM::Serializable is not included for the Ruby core classes as the would
+    # also extend these classes with the engine specific extension that we do not
+    # need nor want here.
+    # Instead we define the (slim) mixin module CoreExt to extend the non-POD core classes.
+    # POD classes (nil, boolean, integer, float) cannot be serialized separately but only
+    # as properties of complex serializables.
     module CoreExt
       def serialize(io = nil, pretty: false, format: FIRM::Serializable.default_format)
         FIRM::Serializable[format].dump(self, io, pretty: pretty)

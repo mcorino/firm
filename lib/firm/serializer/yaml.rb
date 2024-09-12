@@ -1,6 +1,7 @@
 # FIRM::Serializer - shape serializer module
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+
 require 'yaml'
 require 'date'
 require 'set'

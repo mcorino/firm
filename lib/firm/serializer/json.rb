@@ -1,6 +1,7 @@
 # FIRM::Serializer - shape serializer module
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+
 require 'json'
 require 'json/add/date'
 require 'json/add/date_time'

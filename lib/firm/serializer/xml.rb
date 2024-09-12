@@ -1,6 +1,7 @@
 # FIRM::Serializer - shape serializer module
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+
 require 'date'
 
 module FIRM

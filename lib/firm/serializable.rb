@@ -1,10 +1,12 @@
 # FIRM::Serializable - serializable mixin
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+
 require 'set'
 
 module FIRM
 
+  # Mixin module providing (de-)serialization support for user defined classes.
   module Serializable
 
     class Exception < RuntimeError; end

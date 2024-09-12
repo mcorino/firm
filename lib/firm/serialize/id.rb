@@ -1,6 +1,7 @@
 # FIRM::Serializer - FIRM serializable ID class
 # Copyright (c) M.J.N. Corino, The Netherlands
 
+
 module FIRM
 
   module Serializable
