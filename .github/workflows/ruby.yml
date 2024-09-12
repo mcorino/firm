@@ -12,8 +12,22 @@ on:
     branches: [ "master" ]
     tags:
       - v*
+    paths-ignore:
+      - '.github/workflows/**'
+      - '**.md'
+      - 'Gemfile'
+      - '.yardopts'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [ "master" ]
+    paths-ignore:
+      - '.github/workflows/**'
+      - '**.md'
+      - 'Gemfile'
+      - '.yardopts'
+      - '.gitignore'
+      - 'LICENSE'
 
 permissions:
   contents: read
