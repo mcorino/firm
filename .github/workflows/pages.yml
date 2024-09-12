@@ -1,0 +1,54 @@
+# CI wxRuby release workflow
+name: Github pages build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  release:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby-version: ['ruby']
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+
+      - name: Setup Ruby gems
+        run: |
+          bundle config set --local with documentation
+          bundle install
+
+      - name: Build HTML docs
+        run: |
+          bundle exec yardoc
+
+      - name: Upload doc archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: firm-html-reference
+          path: rdoc
+          overwrite: true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload Yard output only
+          path: rdoc
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
