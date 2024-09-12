@@ -2,6 +2,8 @@
 # Copyright (c) M.J.N. Corino, The Netherlands
 
 
+require 'set'
+require 'ostruct'
 require 'date'
 
 module FIRM
