@@ -1,3 +1,9 @@
+[![Tests](https://github.com/mcorino/firm/actions/workflows/ruby.yml/badge.svg)](https://github.com/mcorino/firm/actions/workflows/ruby.yml)
+
+[![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
+[![Gem Version](https://badge.fury.io/rb/firm.svg)](https://badge.fury.io/rb/firm)
+[![Documentation](https://img.shields.io/badge/docs-pages-blue.svg)](https://mcorino.github.io/firm)
+
 # FIRM - Format Independent Ruby Marshalling
 
 ## Introduction
