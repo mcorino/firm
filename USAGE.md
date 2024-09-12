@@ -20,7 +20,7 @@ require 'firm'
 ## Serialization and deserialization
 
 Any class which has FIRM (de-)serialization support will provide a `#serialize` instance method and a `#deserialize`
-class method (this includes to core Ruby classes supported out of the box).
+class method (this includes the core Ruby classes supported out of the box).
 
 The `#serialize` method has the following signature.
 
@@ -74,8 +74,8 @@ require 'firm'
   FIRM::Serializable.default_format = :yaml
 ```
 
-Out of the box the formats `:json` and `:yaml` are supported. In case the `nokogiri` gem has been installed and loaded 
-before the `firm` gem the `:xml` format will be available as well.
+Out of the box the formats `:json` and `:yaml` are supported. In case the `nokogiri` gem has been installed _and loaded 
+before the `firm` gem_ the `:xml` format will be available as well.
 
 The `#deserialization` class method has the following signature.
 
@@ -188,8 +188,8 @@ To define a serializable property for a class the `#property` method can be used
 >> Specifies one or more serialized properties.
 >>
 >> The serialization framework will determine the availability of setter and getter methods
->> automatically by looking for methods <code>">>{prop_id}=(v)"</code>, <code>"set_>>{prop_id}(v)"</code> or <code>">>{prop}(v)"</code>
->> for setters and <code>">>{prop_id}()"</code> or <code>"get_>>{prop_id}"</code> for getters.
+>> automatically by looking for methods <code>"#{prop_id}=(v)"</code>, <code>"#set_{prop_id}(v)"</code> or <code>"#{prop_id}(v)"</code>
+>> for setters and <code>"#{prop_id}()"</code> or <code>"#get_{prop_id}"</code> for getters.
 >>
 >> **Parameters:**
 >>
@@ -205,7 +205,9 @@ To define a serializable property for a class the `#property` method can be used
 >> `property(hash, force: false)`
 >>
 >> Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
->> Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter).
+>> Procs with setter support MUST accept 1 or 2 arguments (1 for getter, 2 for setter) where the first
+>> argument will always be the property owner's object instance and the second (in case of a setter proc) the
+>> value to restore.
 >> 
 >>> **NOTE** Use `*val` to specify the optional value argument for setter requests instead of `val=nil`
 >>> to be able to support setting explicit nil values.
@@ -248,6 +250,11 @@ To define a serializable property for a class the `#property` method can be used
 >>
 >> - (undefined)
 
+There are 2 requirements for declaring a serializable property:
+
+1. the property's data type needs to be serializable (duh!);
+2. there need to be appropriate getter & setter methods/procedures defined (see below). 
+
 The simplest property declaration takes this form.
 
 ```ruby
@@ -277,7 +284,7 @@ end
 This defines the serializable properties `:x` and `:y` for the `Point` class.
 By default the FIRM library will identify getter and setter methods by looking for standard attribute accessor methods
 named `#property_id()` (getter) and `#property_id=(val)`. If these can not be found the library looks for 
-`#get_property_id()` (getter) and `#set_property_id(val)` respectively.
+`#get_property_id()` (getter) and `#set_property_id(val)` (or `#property_id(v)`) respectively.
 
 The following example shows usage of the alternative standard getter / setter scheme.
 
@@ -817,11 +824,11 @@ path2 = Path.deserialize(path_json)
 extpath2 = ExtendedPath.deserialize(extpath_json)
 ```
 
-FIRM aliasing support is somewhat less efficient than the builtin support offered by YAML so as it will add (a small 
+FIRM aliasing support is somewhat less efficient than the builtin support offered by YAML as it will add (a small 
 bit of) additional persisted data for every instance of aliasable classes.
 Therefor this functionality might be best suited for persisting larger objects that are often (always) aliased. For 
-situations with small objects which are only incidentally referenced multiple times the approach from the previous
-section might be best suited.
+situations with small objects which are only incidentally referenced multiple times an approach similar to the one described in 
+the previous section might be best suited.
 
 ### Custom construction for deserialization 
 
@@ -887,12 +894,12 @@ For these cases the approach of overloading the `#create_for_deserialize` method
 
 In cases which involve restoring large amounts of persisted properties this may however be cumbersome.
 Instead of overloading `#create_for_deserialize` there is therefor another customization option available that
-allows to define deserialization finalizers.
+allows to define _deserialization finalizers_.<br>
 A deserialization finalizer is a method, proc or block that will be called for a deserialized object after all 
 it's serialized properties have been deserialized and restored.
 
-Deserialization finalizers can be defined using the `#define_deserialize_finalizer` class method which has the 
-following signature:
+FIRM supports a default finalizer scheme but also allows alternative definitions (or disabling) of deserialization 
+finalizers using the `#define_deserialize_finalizer` class method which has the following signature:
 
 > ```ruby
 > def self.define_deserialize_finalizer(meth)
@@ -971,3 +978,38 @@ class CreateFinalizer
     private :set_value
 end
 ```
+
+In case a user defined class defines a matching `#create` method that for some reason is not to be used as a 
+deserialization finalizer the default assignment can be disabled by using a call to `#define_deserialize_finalizer`
+with a `nil` argument as follows.
+
+```ruby
+class SomeClass
+  
+  include FIRM::Serializable
+  
+  properties :a, :b, :c
+    
+  # disable any deserialization finalizer 
+  define_deserialize_finalizer nil
+  
+  # should not be used as finalizer
+  def create
+    # ...
+  end
+  
+end
+```
+
+Instead of disabling `#define_deserialize_finalizer` could also be used to define an alternative finalizer.
+
+#### Alternative finalizer
+
+Alternatively `#define_deserialize_finalizer` can be used to explicitly define a finalizer from:
+
+1. a name (`String` or `Symbol`) identifying an instance method of the serializable class;
+2. a lambda or Proc;
+3. a block.
+
+Instance methods should not expect any arguments. Procs or blocks should expect the deserialized object instance
+to be passed as the single argument.
