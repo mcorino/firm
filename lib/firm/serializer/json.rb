@@ -246,8 +246,12 @@ module FIRM
             '*id' => Serializable::Aliasing.get_anchor(self)
           }
         else
-          json_data['data'] = for_serialize(Hash.new)
-          json_data['data']['&id'] = Serializable::Aliasing.create_anchor(self) if self.class.allows_aliases?
+          # create serialized anchor id **before** serializing properties to properly handle cycling (bidirectional
+          # references)
+          json_data['data'] = {
+            '&id' => Serializable::Aliasing.create_anchor(self)
+          } if self.class.allows_aliases?
+          for_serialize(json_data['data'])
         end
         json_data.to_json(*args)
       end
