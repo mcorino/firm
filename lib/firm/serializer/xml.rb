@@ -416,7 +416,7 @@ module FIRM
         def self.dump(obj, io=nil, pretty: false)
           begin
             # initialize anchor registry
-            Serializable::Aliasing.start_anchor_registry
+            Serializable::Aliasing.start_anchor_object_registry
             # generate XML document
             xml = to_xml(Nokogiri::XML::Document.new, obj)
             opts = pretty ? { indent: 2 } : { save_with: 0 }
@@ -428,7 +428,7 @@ module FIRM
             end
           ensure
             # reset anchor registry
-            Serializable::Aliasing.clear_anchor_registry
+            Serializable::Aliasing.clear_anchor_object_registry
           end
         end
 
@@ -462,22 +462,18 @@ module FIRM
         def from_xml(xml)
           data = XML::HashAdapter.new(xml)
           if self.allows_aliases?
-            # deserializing anchor or alias
-            if xml.has_attribute?('anchor')
-              instance = create_for_deserialize(data)
-                           .__send__(:from_serialized, data)
-                           .__send__(:finalize_from_serialized)
-              Serializable::Aliasing.restore_anchor(
-                Serializable::ID.create_for_deserialize({ id: xml['anchor'].to_i }),
-                instance)
-            elsif xml.has_attribute?('alias')
-              Serializable::Aliasing.resolve_anchor(
-                self,
-                Serializable::ID.create_for_deserialize({ id: xml['alias'].to_i }))
+            # deserializing alias
+            if xml.has_attribute?('alias')
+              Serializable::Aliasing.resolve_anchor(self, xml['alias'].to_i)
             else
-              raise Serializable::Exception, 'Aliasable instance misses anchor or alias id'
+              instance = create_for_deserialize(data)
+              Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
+              instance.__send__(:from_serialized, data)
+                      .__send__(:finalize_from_serialized)
             end
           else
+            ::Kernel.raise Serializable::Exception,
+                           "Attempted to load disallowed alias for #{xml['class']}" if xml.has_attribute?('alias')
             create_for_deserialize(data)
               .__send__(:from_serialized, data)
               .__send__(:finalize_from_serialized)
@@ -492,10 +488,15 @@ module FIRM
         def to_xml(xml)
           node = xml.add_child(Nokogiri::XML::Node.new('Object', xml.document))
           node['class'] = self.class.name
-          if self.class.allows_aliases? && Serializable::Aliasing.anchored?(self)
-            node['alias'] = "#{Serializable::Aliasing.get_anchor(self).to_i}"
+          if (anchor = Serializable::Aliasing.get_anchor(self))
+            anchor_data = Serializable::Aliasing.get_anchor_data(self)
+            # retroactively insert the anchor in the anchored instance's serialization data
+            anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
+            node['alias'] = "#{anchor}"
           else
-            node['anchor'] = "#{Serializable::Aliasing.create_anchor(self).to_i}" if self.class.allows_aliases?
+            # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+            # references)
+            Serializable::Aliasing.register_anchor_object(self, node)
             for_serialize(XML::HashAdapter.new(node))
           end
           xml

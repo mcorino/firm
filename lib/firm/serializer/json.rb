@@ -44,55 +44,6 @@ module FIRM
         alias key? include?
       end
 
-      # Mixin module to patch hash objects during JSON serialization.
-      # By default JSON will not consider hash keys for custom serialization
-      # but assumes any key should be serialized as it's string representation.
-      # This is restrictive but compatible with "pure" JSON object notation.
-      # JSON however also does not (correctly?) honour overriding Hash#to_json to
-      # customize serialization of Hash-es which seems too restrictive (stupid?)
-      # as using more complex custom keys for Hash-es instead of String/Symbol-s
-      # is not that uncommon.
-      # This mixin is used to "patch" Hash **instances** through #extend.
-      module HashInstancePatch
-        def patch_nested_hashes(obj)
-          case obj
-          when ::Hash
-            obj.extend(HashInstancePatch) unless obj.singleton_class.include?(HashInstancePatch)
-            obj.each_pair { |k, v| patch_nested_hashes(k); patch_nested_hashes(v) }
-          when ::Array
-            obj.each { |e| patch_nested_hashes(e) }
-          end
-          obj
-        end
-        private :patch_nested_hashes
-
-        # Returns JSON representation (String) of self.
-        # Hash data which is part of object properties/members being serialized
-        # (including any nested Hash-es) will be patched with HashInstancePatch.
-        # Patched Hash instances will be serialized as JSON-creatable objects
-        # (so provided with a JSON#create_id) with the hash contents represented
-        # as an array of key/value pairs (arrays).
-        # @param [Array<Object>] args any args passed by the JSON generator
-        # @return [String] JSON representation
-        def to_json(*args)
-          if self.has_key?(::JSON.create_id)
-            if self.has_key?('data')
-              if (data = self['data']).is_a?(::Hash)
-                data.each_value { |v| patch_nested_hashes(v) }
-              end
-            else # core class extensions use different data members for property serialization
-              self.each_value { |v| patch_nested_hashes(v) }
-            end
-            super
-          else
-            {
-              ::JSON.create_id => self.class.name,
-              'data' => patch_nested_hashes(to_a)
-            }.to_json(*args)
-          end
-        end
-      end
-
       # Mixin module to patch singleton_clas of the Hash class to make Hash-es
       # JSON creatable (#json_creatable? returns true).
       module HashClassPatch
@@ -101,13 +52,6 @@ module FIRM
         # @return [Hash] restored Hash instance
         def json_create(object)
           object['data'].to_h
-        end
-      end
-
-      class ::Hash
-        include FIRM::Serializable::JSON::HashInstancePatch
-        class << self
-          include FIRM::Serializable::JSON::HashClassPatch
         end
       end
 
@@ -159,23 +103,24 @@ module FIRM
       end
 
       def self.dump(obj, io=nil, pretty: false)
-        obj.extend(HashInstancePatch) if obj.is_a?(::Hash)
+        # obj.extend(HashInstancePatch) if obj.is_a?(::Hash)
         begin
           # initialize anchor registry
-          Serializable::Aliasing.start_anchor_registry
+          Serializable::Aliasing.start_anchor_object_registry
+          for_json = obj.respond_to?(:as_json) ? obj.as_json : obj
           if pretty
             if io || io.respond_to?(:write)
-              io.write(::JSON.pretty_generate(obj))
+              io.write(::JSON.pretty_generate(for_json))
               io
             else
-              ::JSON.pretty_generate(obj)
+              ::JSON.pretty_generate(for_json)
             end
           else
-            ::JSON.dump(obj, io)
+            ::JSON.dump(for_json, io)
           end
         ensure
           # reset anchor registry
-          Serializable::Aliasing.clear_anchor_registry
+          Serializable::Aliasing.clear_anchor_object_registry
         end
       end
 
@@ -212,21 +157,40 @@ module FIRM
     module SerializeClassMethods
 
       def json_create(object)
+        data = object['data']
         if self.allows_aliases?
-          # deserializing anchor or alias
-          if object['data'].has_key?('&id')
-            anchor_id = object['data'].delete('&id')
-            instance = create_for_deserialize(data = object['data'])
-                         .__send__(:from_serialized, data)
-                         .__send__(:finalize_from_serialized)
-            Serializable::Aliasing.restore_anchor(anchor_id, instance)
-          elsif object['data'].has_key?('*id')
-            Serializable::Aliasing.resolve_anchor(self, object['data']['*id'])
+          # deserializing (anchor) object or alias
+          if data.has_key?('*id')
+            if Serializable::Aliasing.restored?(self, data['*id'])
+              Serializable::Aliasing.resolve_anchor(self, data['*id'])
+            else
+              # in case of cyclic references JSON will restore aliases before the anchors
+              # so in this case we create a default constructed instance here and register it as
+              # the anchor; when the anchor is restored it will re-use this instance to restore
+              # the properties (this means classes involved in cyclic references **MUST** have default ctor)
+              Serializable::Aliasing.restore_anchor(data['*id'], self.new)
+            end
           else
-            raise Serializable::Exception, 'Aliasable instance misses anchor or alias id'
+            instance = if data.has_key?('&id')
+                         anchor_id = data.delete('&id') # extract anchor id
+                         if Serializable::Aliasing.restored?(self, anchor_id)
+                           # in case of cyclic references an alias will already have restored the anchor instance
+                           # (default constructed); retrieve that instance here for deserialization of properties
+                           Serializable::Aliasing.resolve_anchor(self, anchor_id)
+                         else
+                           # restore the anchor here with a newly created instance
+                           Serializable::Aliasing.restore_anchor(anchor_id, create_for_deserialize(data))
+                         end
+                       else
+                         create_for_deserialize(data)
+                       end
+            instance.__send__(:from_serialized, data)
+                    .__send__(:finalize_from_serialized)
           end
         else
-          create_for_deserialize(data = object['data'])
+          ::Kernel.raise Serializable::Exception,
+                         "Attempted to load disallowed alias for #{object['json_class']}"if data.has_key?('*id')
+          create_for_deserialize(data)
             .__send__(:from_serialized, data)
             .__send__(:finalize_from_serialized)
         end
@@ -237,23 +201,25 @@ module FIRM
     # extend instance serialization methods
     module SerializeInstanceMethods
 
-      def to_json(*args)
+      def as_json(*)
         json_data = {
           ::JSON.create_id => self.class.name
         }
-        if self.class.allows_aliases? && Serializable::Aliasing.anchored?(self)
+        if (anchor = Serializable::Aliasing.get_anchor(self))
+          anchor_data = Serializable::Aliasing.get_anchor_data(self)
+          # retroactively insert the anchor in the anchored instance's serialization data
+          anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
           json_data["data"] = {
-            '*id' => Serializable::Aliasing.get_anchor(self)
+            '*id' => anchor
           }
         else
-          # create serialized anchor id **before** serializing properties to properly handle cycling (bidirectional
+          # register anchor object **before** serializing properties to properly handle cycling (bidirectional
           # references)
-          json_data['data'] = {
-            '&id' => Serializable::Aliasing.create_anchor(self)
-          } if self.class.allows_aliases?
-          for_serialize(json_data['data'])
+          json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
+          json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
         end
-        json_data.to_json(*args)
+        json_data
+        json_data
       end
 
     end
@@ -274,7 +240,7 @@ module FIRM
 
     end
 
-    register(Serializable.default_format, JSON)
+    register(:json, JSON)
 
   end
 
@@ -313,6 +279,55 @@ class ::Class
     respond_to?(:json_create)
   end
 
+end
+
+class ::Array
+  def as_json(*)
+    collect { |e| e.respond_to?(:as_json) ? e.as_json : e }
+  end
+end
+
+class ::Hash
+  class << self
+    include FIRM::Serializable::JSON::HashClassPatch
+  end
+  def as_json(*)
+    {
+      ::JSON.create_id => self.class.name,
+      'data' => collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
+    }
+  end
+end
+
+class ::Set
+  def as_json(*)
+    {
+      JSON.create_id => self.class.name,
+      'a'            => to_a.as_json,
+    }
+  end
+end
+
+class ::Struct
+  def as_json(*)
+    klass = self.class.name
+    klass.to_s.empty? and raise JSON::JSONError, "Only named structs are supported!"
+    {
+      JSON.create_id => klass,
+      'v'            => values.as_json,
+    }
+  end
+end
+
+class ::OpenStruct
+  def as_json(*)
+    klass = self.class.name
+    klass.to_s.empty? and raise JSON::JSONError, "Only named structs are supported!"
+    {
+      JSON.create_id => klass,
+      't'            => table.as_json,
+    }
+  end
 end
 
 # fix flawed JSON serializing

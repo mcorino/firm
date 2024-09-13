@@ -226,55 +226,63 @@ module FIRM
     # output engines that do not provide this support out of the box.
     module AliasManagement
 
-      TLS_ANCHORS_STACK_KEY = :firm_alias_anchors_stack.freeze
-      private_constant :TLS_ANCHORS_STACK_KEY
+      TLS_ANCHOR_OBJECTS_KEY = :firm_anchors_objects.freeze
+      private_constant :TLS_ANCHOR_OBJECTS_KEY
 
       TLS_ALIAS_STACK_KEY = :firm_anchor_reference_stack.freeze
       private_constant :TLS_ALIAS_STACK_KEY
 
-      def anchor_registry_stack
-        ::Thread.current[TLS_ANCHORS_STACK_KEY] ||= []
+      def anchor_object_registry_stack
+        ::Thread.current[TLS_ANCHOR_OBJECTS_KEY] ||= []
       end
-      private :anchor_registry_stack
+      private :anchor_object_registry_stack
 
-      def start_anchor_registry
-        anchor_registry_stack.push({})
-      end
-
-      def clear_anchor_registry
-        anchor_registry_stack.pop
+      def start_anchor_object_registry
+        anchor_object_registry_stack.push({})
       end
 
-      def anchor_registry
-        anchor_registry_stack.last
+      def clear_anchor_object_registry
+        anchor_object_registry_stack.pop
       end
-      private :anchor_registry
 
-      def class_anchors(klass)
-        anchor_registry[klass] ||= {}
+      def anchor_object_registry
+        anchor_object_registry_stack.last
       end
-      private :class_anchors
+      private :anchor_object_registry
 
-      # Creates a new anchor registration and returns the anchor ID
+      def class_anchor_objects(klass)
+        anchor_object_registry[klass] ||= {}
+      end
+      private :class_anchor_objects
+
+      # Registers a new anchor object.
       # @param [Object] object anchor instance
-      # @return [Integer] anchor ID
-      def create_anchor(object)
-        anchors = class_anchors(object.class)
+      # @param [Object] data serialized property collection object
+      # @return [Object] serialized property collection object
+      def register_anchor_object(object, data)
+        anchors = class_anchor_objects(object.class)
         raise Serializable::Exception, "Duplicate anchor creation for #{object}" if anchors.has_key?(object.object_id)
-        anchors[object.object_id] = object.object_id
+        anchors[object.object_id] = data
       end
 
       # Returns true if the object has an anchor registration, false otherwise.
       # @return [Boolean]
       def anchored?(object)
-        class_anchors(object.class).has_key?(object.object_id)
+        class_anchor_objects(object.class).has_key?(object.object_id)
       end
 
-      # Retrieves the anchor ID for an anchored object.
-      # Returns nil if the object is not anchored.
-      # @return [nil,Integer]
+      # Returns the anchor id if anchored, nil otherwise.
+      # @param [Object] object anchor instance
+      # @return [Integer, nil]
       def get_anchor(object)
-        anchors = class_anchors(object.class)
+        anchored?(object) ? object.object_id : nil
+      end
+
+      # Retrieves the anchor serialization collection data for an anchored object.
+      # Returns nil if the object is not anchored.
+      # @return [nil,Object]
+      def get_anchor_data(object)
+        anchors = class_anchor_objects(object.class)
         anchors[object.object_id]
       end
 
@@ -307,6 +315,14 @@ module FIRM
       # @return [Object] anchor instance
       def restore_anchor(id, object)
         class_anchor_references(object.class)[id] = object
+      end
+
+      # Returns true if the anchor object for the given class and id has been restored, false otherwise.
+      # @param [Class] klass aliasable class of the anchor instance
+      # @param [Integer] id anchor id
+      # @return [Boolean]
+      def restored?(klass, id)
+        class_anchor_references(klass).has_key?(id)
       end
 
       # Resolves a referenced anchor instance.
