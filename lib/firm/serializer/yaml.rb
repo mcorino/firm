@@ -74,7 +74,7 @@ module FIRM
         end
       end
 
-      def self.dump(obj, io=nil, _pretty: false)
+      def self.dump(obj, io=nil, **)
         ::YAML.dump(obj, io)
       end
 
