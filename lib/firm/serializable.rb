@@ -167,6 +167,7 @@ module FIRM
       # @param [Symbol,String] format format id
       # @return [Object] formatting engine
       def [](format)
+        ::Kernel.raise ArgumentError, "Format #{format} is not supported." unless formatters.has_key?(format.to_s.downcase)
         formatters[format.to_s.downcase]
       end
 
