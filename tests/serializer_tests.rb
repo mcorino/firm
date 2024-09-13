@@ -596,6 +596,83 @@ module SerializerTestMixin
     assert_equal(obj_new.map[:five].object_id, obj_new.map[:six].object_id)
   end
 
+  class House
+
+    include FIRM::Serializable
+
+    attr_accessor :address, :city
+    attr_reader :owners
+
+    properties :address, :city, :owners
+
+    allow_aliases
+
+    def initialize(*args)
+      @address, @city = *args
+      @owners = []
+    end
+
+    def add_owner(owner)
+      @owners << owner
+      owner.houses << self
+    end
+
+    def set_owners(owners)
+      @owners = owners
+    end
+    private :set_owners
+
+  end
+
+  class Person
+
+    include FIRM::Serializable
+
+    attr_accessor :name, :tax_id, :houses
+
+    properties :name, :tax_id, :houses
+
+    allow_aliases
+
+    def initialize(*args)
+      @name, @tax_id = *args
+      @houses = []
+    end
+
+  end
+
+  def test_cyclic_references
+    person_a = Person.new('Max A', 123456)
+    person_b = Person.new('Joe B', 234567)
+
+    house_1 = House.new('The street 1', 'Nowhere')
+    house_1.add_owner(person_a)
+    house_2 = House.new('The lane 2', 'Somewhere')
+    house_2.add_owner(person_b)
+    house_3 = House.new('The promenade 3', 'ThisPlace')
+    house_3.add_owner(person_a)
+    house_3.add_owner(person_b)
+
+    obj_serial = [house_1, house_2, house_3].serialize
+    h1_new, h2_new, h3_new = nil
+    assert_nothing_raised { h1_new, h2_new, h3_new = *FIRM.deserialize(obj_serial) }
+    assert_instance_of(House, h1_new)
+    assert_instance_of(House, h2_new)
+    assert_instance_of(House, h3_new)
+    assert_true(house_1.address == h1_new.address && house_1.city == h1_new.city)
+    assert_true(house_2.address == h2_new.address && house_2.city == h2_new.city)
+    assert_true(house_3.address == h3_new.address && house_3.city == h3_new.city)
+    assert_equal(h1_new.owners[0].object_id, h3_new.owners[0].object_id)
+    assert_equal(h2_new.owners[0].object_id, h3_new.owners[1].object_id)
+    pa_new, pb_new = *h3_new.owners
+    assert_instance_of(Person, pa_new)
+    assert_instance_of(Person, pb_new)
+    assert_equal(h1_new.object_id, pa_new.houses[0].object_id)
+    assert_equal(h2_new.object_id, pb_new.houses[0].object_id)
+    assert_equal(h3_new.object_id, pa_new.houses[1].object_id)
+    assert_equal(h3_new.object_id, pb_new.houses[1].object_id)
+  end
+
   def test_nested_hash_with_complex_keys
     id_obj = Identifiable.new(:one)
     id_obj2 = Identifiable.new(:two)
