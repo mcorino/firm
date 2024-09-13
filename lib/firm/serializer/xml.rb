@@ -245,13 +245,34 @@ module FIRM
           def to_xml(xml, value)
             node = create_type_node(xml)
             node['class'] = value.class.name
-            value.each do |v|
-              Serializable::XML.to_xml(node, v)
+            if (anchor = Serializable::Aliasing.get_anchor(value))
+              anchor_data = Serializable::Aliasing.get_anchor_data(value)
+              # retroactively insert the anchor in the anchored instance's serialization data
+              anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
+              node['alias'] = "#{anchor}"
+            else
+              # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+              # references)
+              Serializable::Aliasing.register_anchor_object(value, node)
+              value.each do |v|
+                Serializable::XML.to_xml(node, v)
+              end
             end
             xml
           end
           def from_xml(xml)
-            ::Object.const_get(xml['class']).new(*xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+            # deserializing alias
+            klass = ::Object.const_get(xml['class'])
+            if xml.has_attribute?('alias')
+              Serializable::Aliasing.resolve_anchor(klass, xml['alias'].to_i)
+            else
+              instance = klass.allocate
+              # in case this is an anchor restore the anchor instance before restoring the member values
+              # and afterwards initialize the instance with the restored member values
+              Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
+              instance.__send__(:initialize, *xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+              instance
+            end
           end
         end
 
