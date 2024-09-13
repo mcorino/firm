@@ -8,11 +8,17 @@
 
 ## Introduction
 
-FIRM is a Ruby library providing output format independent object (de-)serialization support.
+FIRM is a pure Ruby library providing output format independent object (de-)serialization support.
+
+FIRM is explicitly **NOT** intended as a non-discriminative marshaling library (dumping any object's attributes)
+but rather as structured and safe serialization library requiring users to think about what state they want
+persisted (and possibly in what form) and what not.
+Straightforward attribute serialization is simple with minimal intrusion on user code.
+In addition various customization options are available to tweak (de-)serialization for a perfect fit if needed. 
 
 Out of the box (de-)serializing Ruby objects to(from) JSON and YAML is supported without any additional
 dependencies.
-When the `nokogiri` gem is installed (and loaded) XML (de-)serializing will also be available.
+When the `nokogiri` gem is installed (and loaded before FIRM) XML (de-)serializing will also be available.
 
 FIRM supports (de-)serializing many core Ruby objects out of the box including:
 
@@ -37,6 +43,11 @@ FIRM supports (de-)serializing many core Ruby objects out of the box including:
 - `DateTime`
 
 FIRM also supports a simple scheme to provide (de-)serialization support for user defined classes. 
+
+FIRM provides object aliasing support for JSON and XML in a similar fashion as the standard support provided
+by YAML. All user defined serializable class as well as **named** `Struct`-derived classes support aliasing.
+
+FIRM also automatically recognizes and handles cyclic references of aliasable objects.
 
 ## Installing FIRM
 

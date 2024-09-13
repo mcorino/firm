@@ -721,9 +721,9 @@ extpath2 = ExtendedPath.deserialize(extpath_json)
 
 ### Object aliases
 
-The requirements in the previous section could also have been met by using persisted object aliases which by default
+The requirements in the previous section could also have been met by using persisted object aliases which without FIRM
 are only supported with YAML.
-FIRM however implements functionality to also allow object aliasing with JSON and XML using one simple interface.
+FIRM however implements functionality to also support object aliasing with JSON and XML.
 
 When applying aliasing the FIRM code will not serialize multiple copies of an object instance referenced multiple
 times in a dataset being serialized but instead it will serialize a single copy the first time the instance is
@@ -731,8 +731,7 @@ encountered with a special 'anchor' id attached and serialize only shallow 'alia
 other reference of the same instance encountered while serializing.
 On deserialization the same instance will be restored for the 'anchored' copy as well as any 'alias' references.
 
-Aliasing must be explicitly allowed for a **user defined** serializable class (which is also the default for the
-latest Psych YAML releases) to be applied on (de-)serialization.
+Aliasing is only supported for **user defined** serializable classes and named Struct (-derived) classes.
 
 The following example showcases this functionality.
 
@@ -746,9 +745,6 @@ class Point
   # declare the serializable properties of instances of this class
   properties :x, :y
 
-  # allow aliases for persisted points
-  allow_aliases
-  
   # allow instantiation using the default ctor (no args)
   # (custom creation schemes can be defined)
   def initialize(*args)
@@ -824,20 +820,29 @@ path2 = Path.deserialize(path_json)
 extpath2 = ExtendedPath.deserialize(extpath_json)
 ```
 
-FIRM aliasing support is somewhat less efficient than the builtin support offered by YAML as it will add (a small 
-bit of) additional persisted data for every instance of aliasable classes.
-Therefor this functionality might be best suited for persisting larger objects that are often (always) aliased. For 
-situations with small objects which are only incidentally referenced multiple times an approach similar to the one described in 
-the previous section might be best suited.
+#### Cyclic references
 
-### Custom construction for deserialization 
+FIRM automatically recognizes and handles cyclic references of aliasable objects.
 
-By default FIRM deserialization will construct class instances for deserialization by calling the default constructor
-for a class (no arguments), i.e. `instance = klass.new`.
+As this support is based on the FIRM aliasing support handling cyclic references is restricted to those classes 
+that support aliasing.<br>
+In particular users should avoid cyclic references of the following instances:
+- Array
+- Hash
+- Set
+- OpenStruct
+
+In practice this should not be a real issue as having cyclic references of these kind of generic container objects
+should be considered **BAD** programming.
+
+### Custom initialization for deserialization 
+
+By default FIRM deserialization will initialize class instances for deserialization by calling the `#initialize` instance
+method of a class without arguments (default construction), i.e. `instance.__send__(:initialize)`.
 This may not always be appropriate for various reasons. For these cases it is possible to overload the default 
-construction method for **user defined** serializable classes.
+initialization method for **user defined** serializable classes.
 
-In case customized construction is required overload the `#create_for_deserialize(data)` class method as shown in 
+In case customized initialization is required overload the (protected) `#init_from_serialized(data)` instance method as shown in 
 the following example.
 
 ```ruby
@@ -854,23 +859,28 @@ class Singleton
     def instance
       @instance ||= self.new
     end
+    
+    # FIRM creates new instances for deserialization by calling #allocate followed by #init_from_serialized 
+    def allocate
+      instance
+    end
   end
   
   
-  # Overload the deserialization constructor.
+  # Overload the deserialization initializer.
 
-  # Creates a new instance for subsequent deserialization and optionally initializes
-  # it using the given data (hash-like) object.
-  # The default implementation creates a new instance using the default constructor
-  # (no arguments, no initialization) and leaves the initialization to a subsequent call
-  # to the instance method #from_serialized(data).
+  # Initializes a newly allocated instance for subsequent deserialization (optionally initializing
+  # using the given data hash).
+  # The default implementation calls the standard #initialize method without arguments (default constructor)
+  # and leaves the property restoration to a subsequent call to the instance method #from_serialized(data).
   # Classes that do not support a default constructor can override this class method and
+  # implement a custom initialization scheme.
   # implement a custom creation scheme.
-  # @param [Object] data hash-like object containing deserialized property data (symbol keys)
-  # @return [Object] the newly created object
-  def self.create_for_deserialize(data)
-    # create a new object for deserialization
-    instance
+  # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
+  # @return [self] the object
+  def init_from_serialized(_data)
+    # nothing to initialize (already done in allocate)
+    self
   end
   
 end
