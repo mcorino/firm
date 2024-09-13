@@ -12,41 +12,49 @@ module FIRM
 
       class << self
 
-        TLS_RESTORATION_MAP_KEY = :wx_sf_serializable_id_restoration_map.freeze
-        private_constant :TLS_RESTORATION_MAP_KEY
-
-        def init_restoration_map
-          (::Thread.current[TLS_RESTORATION_MAP_KEY] ||= []) << {}
-        end
-
-        def clear_restoration_map
-          ::Thread.current[TLS_RESTORATION_MAP_KEY].pop
-        end
-
-        def restoration_map
-          ::Thread.current[TLS_RESTORATION_MAP_KEY].last
+        # Deserializes object from source data
+        # @param [IO,String] source source data (String or IO(-like object))
+        # @param [Symbol, String] format data format of source
+        # @return [Object] deserialized object
+        def deserialize(source, format: Serializable.default_format)
+          Serializable.deserialize(source, format: format)
         end
 
       end
 
-      # Returns a Serialized::Id instance matching the deserialized id number
-      # either by retrieving an earlier restored Id from the (thread/fiber-)current
-      # restoration map or creating (and mapping) a new Id instance.
-      # @param [Object] data hash-like deserialized properties container
-      # @return [ID] restored ID instance
-      # @see SerializeClassMethods#create_for_deserialize
-      def self.create_for_deserialize(data)
-        serialized_id = data[:id] || 0
-        restoration_map[serialized_id] ||= self.new
+      # Serialize this object
+      # @overload serialize(pretty: false, format: Serializable.default_format)
+      #   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
+      #   @param [Symbol,String] format specifies output format
+      #   @return [String] serialized data
+      # @overload serialize(io, pretty: false, format: Serializable.default_format)
+      #   @param [IO] io output stream to write serialized data to
+      #   @param [Boolean] pretty if true specifies to generate pretty formatted output if possible
+      #   @param [Symbol,String] format specifies output format
+      #   @return [IO]
+      def serialize(io = nil, pretty: false, format: Serializable.default_format)
+        Serializable[format].dump(self, io, pretty: pretty)
       end
 
-      # Collects the ID's object_id for serialization.
-      # Note that this is fixed and cannot be excluded.
+      # Initializes a newly allocated instance for subsequent deserialization (optionally initializing
+      # using the given data hash).
+      # The default implementation calls the standard #initialize method without arguments (default constructor)
+      # and leaves the property restoration to a subsequent call to the instance method #from_serialized(data).
+      # Classes that do not support a default constructor can override this class method and
+      # implement a custom initialization scheme.
+      # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
+      # @return [Object] the initialized object
+      def init_from_serialized(_data)
+        initialize
+        self
+      end
+      protected :init_from_serialized
+
+      # Noop for ID instances.
       # @param [Object] hash hash-like property serialization container
       # @param [Set] _excludes ignored
       # @return [Object] property hash-like serialization container
       def for_serialize(hash, _excludes = nil)
-        hash[:id] = self.object_id
         hash
       end
 
@@ -90,8 +98,6 @@ module FIRM
       end
 
     end
-
-    serializables << ID
 
   end
 

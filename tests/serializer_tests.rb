@@ -151,9 +151,11 @@ module SerializerTestMixin
     end
     protected :from_serialized
 
-    def self.create_for_deserialize(data)
-      self.new(data[:x], data[:y], data[:width], data[:height])
+    def init_from_serialized(data)
+      initialize(data[:x], data[:y], data[:width], data[:height])
+      self
     end
+    protected :init_from_serialized
 
   end
 
@@ -551,8 +553,6 @@ module SerializerTestMixin
 
     property :name, :description
 
-    allow_aliases
-
     def initialize(*args)
       @name, @description = *args
     end
@@ -605,8 +605,6 @@ module SerializerTestMixin
 
     properties :address, :city, :owners
 
-    allow_aliases
-
     def initialize(*args)
       @address, @city = *args
       @owners = []
@@ -631,8 +629,6 @@ module SerializerTestMixin
     attr_accessor :name, :tax_id, :houses
 
     properties :name, :tax_id, :houses
-
-    allow_aliases
 
     def initialize(*args)
       @name, @tax_id = *args

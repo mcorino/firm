@@ -126,8 +126,6 @@ module FIRM
 
       def self.load(source)
         begin
-          # initialize ID restoration map
-          Serializable::ID.init_restoration_map
           # initialize alias anchor restoration map
           Serializable::Aliasing.start_anchor_references
           # enable safe deserializing
@@ -140,9 +138,73 @@ module FIRM
           self.end_safe_deserialize
           # reset alias anchor restoration map
           Serializable::Aliasing.clear_anchor_references
-          # reset ID restoration map
-          Serializable::ID.clear_restoration_map
         end
+      end
+
+
+      # extend serialization class methods
+      module SerializeClassMethods
+
+        def json_create(object)
+          data = object['data']
+          # deserializing (anchor) object or alias
+          if data.has_key?('*id')
+            if Serializable::Aliasing.restored?(self, data['*id'])
+              # resolving an already restored anchor for this alias
+              Serializable::Aliasing.resolve_anchor(self, data['*id'])
+            else
+              # in case of cyclic references JSON will restore aliases before the anchors
+              # so in this case we allocate an instance here and register it as
+              # the anchor; when the anchor is restored it will re-use this instance to restore
+              # the properties (this means classes involved in cyclic references **MUST** have default ctor)
+              Serializable::Aliasing.restore_anchor(data['*id'], self.allocate)
+            end
+          else
+            instance = if data.has_key?('&id')
+                         anchor_id = data.delete('&id') # extract anchor id
+                         if Serializable::Aliasing.restored?(self, anchor_id)
+                           # in case of cyclic references an alias will already have restored the anchor instance
+                           # (default constructed); retrieve that instance here for deserialization of properties
+                           Serializable::Aliasing.resolve_anchor(self, anchor_id)
+                         else
+                           # restore the anchor here with a newly allocated instance
+                           Serializable::Aliasing.restore_anchor(anchor_id, self.allocate)
+                         end
+                       else
+                         self.allocate
+                       end
+            instance.__send__(:init_from_serialized, data)
+                    .__send__(:from_serialized, data)
+                    .__send__(:finalize_from_serialized)
+          end
+        end
+
+      end
+
+      # extend instance serialization methods
+      module SerializeInstanceMethods
+
+        def as_json(*)
+          json_data = {
+            ::JSON.create_id => self.class.name
+          }
+          if (anchor = Serializable::Aliasing.get_anchor(self))
+            anchor_data = Serializable::Aliasing.get_anchor_data(self)
+            # retroactively insert the anchor in the anchored instance's serialization data
+            anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
+            json_data["data"] = {
+              '*id' => anchor
+            }
+          else
+            # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+            # references)
+            json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
+            json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
+          end
+          json_data
+          json_data
+        end
+
       end
 
     end
@@ -156,88 +218,22 @@ module FIRM
     # extend serialization class methods
     module SerializeClassMethods
 
-      def json_create(object)
-        data = object['data']
-        if self.allows_aliases?
-          # deserializing (anchor) object or alias
-          if data.has_key?('*id')
-            if Serializable::Aliasing.restored?(self, data['*id'])
-              Serializable::Aliasing.resolve_anchor(self, data['*id'])
-            else
-              # in case of cyclic references JSON will restore aliases before the anchors
-              # so in this case we create a default constructed instance here and register it as
-              # the anchor; when the anchor is restored it will re-use this instance to restore
-              # the properties (this means classes involved in cyclic references **MUST** have default ctor)
-              Serializable::Aliasing.restore_anchor(data['*id'], self.new)
-            end
-          else
-            instance = if data.has_key?('&id')
-                         anchor_id = data.delete('&id') # extract anchor id
-                         if Serializable::Aliasing.restored?(self, anchor_id)
-                           # in case of cyclic references an alias will already have restored the anchor instance
-                           # (default constructed); retrieve that instance here for deserialization of properties
-                           Serializable::Aliasing.resolve_anchor(self, anchor_id)
-                         else
-                           # restore the anchor here with a newly created instance
-                           Serializable::Aliasing.restore_anchor(anchor_id, create_for_deserialize(data))
-                         end
-                       else
-                         create_for_deserialize(data)
-                       end
-            instance.__send__(:from_serialized, data)
-                    .__send__(:finalize_from_serialized)
-          end
-        else
-          ::Kernel.raise Serializable::Exception,
-                         "Attempted to load disallowed alias for #{object['json_class']}"if data.has_key?('*id')
-          create_for_deserialize(data)
-            .__send__(:from_serialized, data)
-            .__send__(:finalize_from_serialized)
-        end
-      end
+      include JSON::SerializeClassMethods
 
     end
 
     # extend instance serialization methods
     module SerializeInstanceMethods
 
-      def as_json(*)
-        json_data = {
-          ::JSON.create_id => self.class.name
-        }
-        if (anchor = Serializable::Aliasing.get_anchor(self))
-          anchor_data = Serializable::Aliasing.get_anchor_data(self)
-          # retroactively insert the anchor in the anchored instance's serialization data
-          anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
-          json_data["data"] = {
-            '*id' => anchor
-          }
-        else
-          # register anchor object **before** serializing properties to properly handle cycling (bidirectional
-          # references)
-          json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
-          json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
-        end
-        json_data
-        json_data
-      end
+      include JSON::SerializeInstanceMethods
 
     end
 
     class ID
-
-      def self.json_create(object)
-        # does not need calls to #from_serialized or #finalize_from_serialized
-        create_for_deserialize(object['data'])
+      include JSON::SerializeInstanceMethods
+      class << self
+        include JSON::SerializeClassMethods
       end
-
-      def to_json(*args)
-        {
-          ::JSON.create_id => self.class.name,
-          'data' => for_serialize(Hash.new)
-        }.to_json(*args)
-      end
-
     end
 
     register(:json, JSON)

@@ -187,41 +187,6 @@ module FIRM
 
     end
 
-    # This module provides the base support for instance aliasing and is
-    # used as a mixin for classes for which aliases have been allowed.
-    module Aliasing
-
-      class << self
-
-        # Returns a {Set} of classes for which aliases are allowed.
-        # @return [::Set]
-        def aliasable_classes
-          @aliasable_classes ||= ::Set.new
-        end
-
-        # Returns true if the given class allows aliasing, false otherwise.
-        # @return [Boolean]
-        def allows_aliases?(klass)
-          aliasable_classes.include?(klass)
-        end
-
-      end
-
-      def self.included(base)
-        # only once
-        return if Serializable::Aliasing.allows_aliases?(base)
-        # register this class as an aliasable class
-        Serializable::Aliasing.aliasable_classes << base
-        # to optimize testing for allowable aliases
-        base.singleton_class.class_eval do
-          def allows_aliases?
-            true
-          end
-        end
-      end
-
-    end
-
     # This module provides alias (de-)serialization management functionality for
     # output engines that do not provide this support out of the box.
     module AliasManagement
@@ -434,19 +399,6 @@ module FIRM
       alias :excluded_properties :excluded_property
       alias :excludes :excluded_property
 
-      # Creates a new instance for subsequent deserialization and optionally initialize
-      # it using the given data hash.
-      # The default implementation creates a new instance using the default constructor
-      # (no arguments, no initialization) and leaves the initialization to a subsequent call
-      # to the instance method #from_serialized(data).
-      # Classes that do not support a default constructor can override this class method and
-      # implement a custom creation scheme.
-      # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
-      # @return [Object] the newly created object
-      def create_for_deserialize(_data)
-        self.new
-      end
-
       # Defines a finalizer method/proc/block to be called after all properties
       # have been deserialized and restored.
       # Procs or blocks will be called with the deserialized object as the single argument.
@@ -495,11 +447,6 @@ module FIRM
         nil
       end
       alias :deserialize_finalizer :define_deserialize_finalizer
-
-      # Provides aliasing support for (de-)serializing
-      def allow_aliases
-        self.include(FIRM::Serializable::Aliasing) unless self.include?(FIRM::Serializable::Aliasing)
-      end
 
       # Deserializes object from source data
       # @param [IO,String] source source data (String or IO(-like object))
@@ -652,14 +599,26 @@ module FIRM
         def find_deserialize_finalizer
           get_deserialize_finalizer
         end
-        def allows_aliases?
-          false # by default not allowed
-        end
       end
 
       base.class_eval do
+
+        # Initializes a newly allocated instance for subsequent deserialization (optionally initializing
+        # using the given data hash).
+        # The default implementation calls the standard #initialize method without arguments (default constructor)
+        # and leaves the property restoration to a subsequent call to the instance method #from_serialized(data).
+        # Classes that do not support a default constructor can override this class method and
+        # implement a custom initialization scheme.
+        # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
+        # @return [Object] the initialized object
+        def init_from_serialized(_data)
+          initialize
+          self
+        end
+        protected :init_from_serialized
+
         # Check if the class has the default deserialize finalizer method defined (a #create method
-        # without arguments) defined. If so install that method as the deserialize finalizer.
+        # without arguments). If so install that method as the deserialize finalizer.
         set_deserialize_finalizer(Serializable::MethodResolver.new(self, :create, true))
       end
 
@@ -734,11 +693,6 @@ module FIRM
 
           # register as serializable class
           Serializable.serializables << derived
-
-          # aliasing support is inherited
-          if self.allows_aliases?
-            Serializable::Aliasing.aliasable_classes << derived
-          end
         end
       end
 

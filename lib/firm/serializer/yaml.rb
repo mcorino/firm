@@ -28,7 +28,8 @@ module FIRM
         if ::RUBY_VERSION >= '3.1.0'
           def revive(klass, node)
             if FIRM::Serializable > klass
-              s = register(node, klass.create_for_deserialize(data = revive_hash({}, node, true)))
+              s = register(node, klass.allocate)
+              s.__send__(:init_from_serialized, data = revive_hash({}, node, true))
               init_with(s, data, node)
             else
               super
@@ -37,20 +38,13 @@ module FIRM
         else
           def revive(klass, node)
             if FIRM::Serializable > klass
-              s = register(node, klass.create_for_deserialize(data = revive_hash({}, node)))
+              s = register(node, klass.allocate)
+              s.__send__(:init_from_serialized, data = revive_hash({}, node))
               init_with(s, data, node)
             else
               super
             end
           end
-        end
-        def visit_Psych_Nodes_Alias o
-          rc = @st.fetch(o.anchor) { raise ::YAML::AnchorNotDefined, o.anchor }
-          # only allow Serializable::ID aliases
-          raise ::YAML::AliasesNotEnabled unless
-            ALLOWED_ALIASES.any? { |klass| klass === rc } ||
-              Serializable::Aliasing.aliasable_classes.any? { |klass| klass === rc }
-          rc
         end
       end
 
@@ -81,20 +75,12 @@ module FIRM
       def self.load(source)
         result = ::YAML.parse(source, filename: nil)
         return nil unless result
-        begin
-          # initialize ID restoration map
-          Serializable::ID.init_restoration_map
-          allowed_classes =(YAML.serializables + Serializable.serializables.to_a).map(&:to_s)
-          class_loader = RestrictedRelaxed.new(allowed_classes)
-          scanner      = ::YAML::ScalarScanner.new(class_loader)
-          visitor = ::YAML::Visitors::NoAliasRuby.new(scanner, class_loader)
-          visitor.extend(YamlSerializePatch)
-          result = visitor.accept result
-        ensure
-          # reset ID restoration map
-          Serializable::ID.clear_restoration_map
-        end
-        result
+        allowed_classes =(YAML.serializables + Serializable.serializables.to_a).map(&:to_s)
+        class_loader = RestrictedRelaxed.new(allowed_classes)
+        scanner      = ::YAML::ScalarScanner.new(class_loader)
+        visitor = ::YAML::Visitors::ToRuby.new(scanner, class_loader)
+        visitor.extend(YamlSerializePatch)
+        visitor.accept result
       end
 
     end

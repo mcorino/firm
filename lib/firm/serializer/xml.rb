@@ -436,8 +436,6 @@ module FIRM
           xml = Nokogiri::XML(source)
           return nil unless xml
           begin
-            # initialize ID restoration map
-            Serializable::ID.init_restoration_map
             # initialize alias anchor restoration map
             Serializable::Aliasing.start_anchor_references
             # initialize XML loader state
@@ -449,9 +447,48 @@ module FIRM
             Serializable::XML.clear_xml_load_state
             # reset alias anchor restoration map
             Serializable::Aliasing.clear_anchor_references
-            # reset ID restoration map
-            Serializable::ID.clear_restoration_map
           end
+        end
+
+        # extend serialization class methods
+        module SerializeClassMethods
+
+          def from_xml(xml)
+            data = XML::HashAdapter.new(xml)
+            # deserializing alias
+            if xml.has_attribute?('alias')
+              Serializable::Aliasing.resolve_anchor(self, xml['alias'].to_i)
+            else
+              instance = self.allocate
+              Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
+              instance.__send__(:init_from_serialized, data)
+                      .__send__(:from_serialized, data)
+                      .__send__(:finalize_from_serialized)
+            end
+          end
+
+        end
+
+        # extend instance serialization methods
+        module SerializeInstanceMethods
+
+          def to_xml(xml)
+            node = xml.add_child(Nokogiri::XML::Node.new('Object', xml.document))
+            node['class'] = self.class.name
+            if (anchor = Serializable::Aliasing.get_anchor(self))
+              anchor_data = Serializable::Aliasing.get_anchor_data(self)
+              # retroactively insert the anchor in the anchored instance's serialization data
+              anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
+              node['alias'] = "#{anchor}"
+            else
+              # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+              # references)
+              Serializable::Aliasing.register_anchor_object(self, node)
+              for_serialize(XML::HashAdapter.new(node))
+            end
+            xml
+          end
+
         end
 
       end
@@ -459,65 +496,22 @@ module FIRM
       # extend serialization class methods
       module SerializeClassMethods
 
-        def from_xml(xml)
-          data = XML::HashAdapter.new(xml)
-          if self.allows_aliases?
-            # deserializing alias
-            if xml.has_attribute?('alias')
-              Serializable::Aliasing.resolve_anchor(self, xml['alias'].to_i)
-            else
-              instance = create_for_deserialize(data)
-              Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
-              instance.__send__(:from_serialized, data)
-                      .__send__(:finalize_from_serialized)
-            end
-          else
-            ::Kernel.raise Serializable::Exception,
-                           "Attempted to load disallowed alias for #{xml['class']}" if xml.has_attribute?('alias')
-            create_for_deserialize(data)
-              .__send__(:from_serialized, data)
-              .__send__(:finalize_from_serialized)
-          end
-        end
+        include XML::SerializeClassMethods
 
       end
 
       # extend instance serialization methods
       module SerializeInstanceMethods
 
-        def to_xml(xml)
-          node = xml.add_child(Nokogiri::XML::Node.new('Object', xml.document))
-          node['class'] = self.class.name
-          if (anchor = Serializable::Aliasing.get_anchor(self))
-            anchor_data = Serializable::Aliasing.get_anchor_data(self)
-            # retroactively insert the anchor in the anchored instance's serialization data
-            anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
-            node['alias'] = "#{anchor}"
-          else
-            # register anchor object **before** serializing properties to properly handle cycling (bidirectional
-            # references)
-            Serializable::Aliasing.register_anchor_object(self, node)
-            for_serialize(XML::HashAdapter.new(node))
-          end
-          xml
-        end
+        include XML::SerializeInstanceMethods
 
       end
 
-      # extend Serializable::ID class
       class ID
-
-        def self.from_xml(xml)
-          # does not need calls to #from_serialized or #finalize_from_serialized
-          create_for_deserialize(XML::HashAdapter.new(xml))
+        include XML::SerializeInstanceMethods
+        class << self
+          include XML::SerializeClassMethods
         end
-
-        def to_xml(xml)
-          node = xml.add_child(Nokogiri::XML::Node.new('Object', xml.document))
-          node['class'] = self.class.name
-          for_serialize(XML::HashAdapter.new(node))
-        end
-
       end
 
       register(:xml, XML)
