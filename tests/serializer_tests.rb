@@ -669,6 +669,18 @@ module SerializerTestMixin
     assert_equal(h3_new.object_id, pb_new.houses[1].object_id)
   end
 
+  CyclicTest = ::Struct.new(:list)
+
+  def test_cyclic_struct
+    struct = CyclicTest.new
+    struct.list = [struct]
+    obj_serial = struct.serialize
+    struct_new = nil
+    assert_nothing_raised { struct_new = FIRM.deserialize(obj_serial) }
+    assert_instance_of(CyclicTest, struct_new)
+    assert_equal(struct_new.object_id, struct_new.list[0].object_id)
+  end
+
   def test_nested_hash_with_complex_keys
     id_obj = Identifiable.new(:one)
     id_obj2 = Identifiable.new(:two)
