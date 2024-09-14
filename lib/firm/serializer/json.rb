@@ -199,9 +199,10 @@ module FIRM
             # register anchor object **before** serializing properties to properly handle cycling (bidirectional
             # references)
             if defined? JRUBY_VERSION
-              # JRuby has a problem modifying a hash while iterating it so we create a new copy here
+              # JRuby has a problem modifying a hash while iterating it so we create a new copy here which we
+              # merge with the original because that may be updated with an anchor id
               json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
-                                    .transform_values { |v| v.respond_to?(:as_json) ? v.as_json : v }
+              json_data['data'].merge(json_data['data'].transform_values { |v| v.respond_to?(:as_json) ? v.as_json : v })
             else
               json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
               json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
