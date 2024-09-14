@@ -198,8 +198,14 @@ module FIRM
           else
             # register anchor object **before** serializing properties to properly handle cycling (bidirectional
             # references)
-            json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
-            json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
+            if defined? JRUBY_VERSION
+              # JRuby has a problem modifying a hash while iterating it so we create a new copy here
+              json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
+                                    .transform_values { |v| v.respond_to?(:as_json) ? v.as_json : v }
+            else
+              json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
+              json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
+            end
           end
           json_data
         end
