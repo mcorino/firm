@@ -824,8 +824,8 @@ extpath2 = ExtendedPath.deserialize(extpath_json)
 
 FIRM automatically recognizes and handles cyclic references of aliasable objects.
 
-As this support is based on the FIRM aliasing support handling cyclic references is restricted to those classes 
-that support aliasing.<br>
+As this support is based on the FIRM aliasing support (except for the YAML format) handling cyclic references is 
+restricted to those classes that support aliasing.<br>
 In particular users should avoid cyclic references of the following instances:
 - Array
 - Hash
