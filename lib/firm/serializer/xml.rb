@@ -182,7 +182,11 @@ module FIRM
             xml
           end
           def from_xml(xml)
-            xml.content
+            # in case the xml was somehow formatted it may be additional text nodes
+            # get inserted because of added space and/or newlines
+            # (like with JRuby's Nokogiri when outputting pretty formatted XML)
+            # so just in case look up the one CDATA child and only use that one's content
+            xml.children.find { |child| child.cdata? }&.text || ''
           end
         end
 
@@ -212,8 +216,9 @@ module FIRM
             xml
           end
           def from_xml(xml)
-            case (s = xml.content)
-            when 'NaN' then :Float::NAN
+            s = xml.children.find { |child| child.cdata? }&.text
+            case s
+            when nil, 'NaN' then :Float::NAN
             when 'Infinity' then ::Float::INFINITY
             when '-Infinity' then -::Float::INFINITY
             else
@@ -307,7 +312,12 @@ module FIRM
               xml
             end
             def from_xml(xml)
-              ::BigDecimal._load(xml.content)
+              # in case the xml was somehow formatted it may be additional text nodes
+              # get inserted because of added space and/or newlines
+              # (like with JRuby's Nokogiri when outputting pretty formatted XML)
+              # so just in case look up the one CDATA child and only use that one's content
+              data = xml.children.find { |child| child.cdata? }&.text
+              ::BigDecimal._load(data || '')
             end
           end
         end

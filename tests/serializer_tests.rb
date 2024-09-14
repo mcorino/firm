@@ -705,10 +705,12 @@ module SerializerTestMixin
     end
   end
 
+  require 'base64'
+
   class NestedSerializer
     include FIRM::Serializable
 
-    property :nested, handler: :marshall_nested
+    property nested: :marshall_nested
 
     def initialize(serializable=nil)
       @nested = serializable
@@ -718,11 +720,13 @@ module SerializerTestMixin
 
     protected
 
-    def marshall_nested(_id, *val)
+    def marshall_nested(*val)
       if val.empty?
-        @nested.serialize
+        # as this results in another XML string to embed it is probably best to encode
+        # it (at least JRuby's Nokogiri version seems to have problems with this without encoding)
+        Base64.urlsafe_encode64(@nested.serialize)
       else
-        @nested = FIRM.deserialize(val.first)
+        @nested = FIRM.deserialize(Base64.urlsafe_decode64(val.first))
         nil
       end
     end
@@ -746,9 +750,8 @@ module SerializerTestMixin
     ref_obj = RefUser.new(container.map[:seven].id, container.map[:eight].id, container.map[:nine].id)
     container.map[:ten] = ref_obj
     nest_obj = NestedSerializer.new(container)
-    obj_serial = [nest_obj, container.map[:one], container.map[:two], container.map[:five], [container.map[:three], container.map[:four], container.map[:six]], ref_obj].serialize(nil, pretty: true)
-    obj_new = nil
-    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
+    obj_serial = [nest_obj, container.map[:one], container.map[:two], container.map[:five], [container.map[:three], container.map[:four], container.map[:six]], ref_obj].serialize(pretty: true)
+    obj_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
     assert_instance_of(::Array, obj_new)
     assert_instance_of(NestedSerializer, obj_new[0])
     container = obj_new[0].nested
