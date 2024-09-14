@@ -8,7 +8,8 @@
 
 ## Introduction
 
-FIRM is a pure Ruby library providing output format independent object (de-)serialization support.
+FIRM is a pure Ruby library that works across different Ruby implementations like MRI Ruby and JRuby providing output 
+format independent object (de-)serialization support.
 
 FIRM is explicitly **NOT** intended as a non-discriminative marshaling library (dumping any object's attributes)
 but rather as structured and safe serialization library requiring users to think about what state they want
