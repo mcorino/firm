@@ -4,6 +4,6 @@
 module FIRM
 
   # FIRM version
-  VERSION = "0.9.0"
+  VERSION = "0.9.1"
 
 end
