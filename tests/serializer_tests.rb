@@ -228,7 +228,7 @@ module SerializerTestMixin
     assert_equal(obj, obj_new)
 
     Struct.new('MyStruct', :one, :two) unless defined? Struct::MyStruct
-    obj = Struct::MyStruct.new(one: Point.new(10, 90), two: Point.new(20, 80))
+    obj = Struct::MyStruct.new(Point.new(10, 90), Point.new(20, 80))
     obj_serial = obj.serialize
     assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
