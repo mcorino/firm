@@ -431,6 +431,16 @@ end
 
 The `#property` method is also aliased as `#properties` and `#contains` for syntactical convenience. 
 
+#### Serializing without property definitions
+
+It is not mandatory to define properties for a serializable class. In case object existence is all the state that is
+required (or such object's state needs to be freshly initialized when restored) including the mixin module is all that
+is needed. This will than result in an '_empty_' serialized instance of the particular class that will simply be
+recreated when deserialized.
+
+Another situation where it might not be needed to define properties is in the case of a derived class that does not
+define any additional state but only additional functionality.
+
 ### Excluding a base property
 
 In some cases a derived class may need to suppress serialization of a property of it's base class because the 
