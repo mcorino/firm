@@ -148,20 +148,20 @@ module FIRM
         def json_create(object)
           data = object['data']
           # deserializing (anchor) object or alias
-          if data.has_key?('*id')
-            if Serializable::Aliasing.restored?(self, data['*id'])
+          if object.has_key?('*id')
+            if Serializable::Aliasing.restored?(self, object['*id'])
               # resolving an already restored anchor for this alias
-              Serializable::Aliasing.resolve_anchor(self, data['*id'])
+              Serializable::Aliasing.resolve_anchor(self, object['*id'])
             else
               # in case of cyclic references JSON will restore aliases before the anchors
               # so in this case we allocate an instance here and register it as
               # the anchor; when the anchor is restored it will re-use this instance to initialize & restore
               # the properties
-              Serializable::Aliasing.restore_anchor(data['*id'], self.allocate)
+              Serializable::Aliasing.restore_anchor(object['*id'], self.allocate)
             end
           else
-            instance = if data.has_key?('&id')
-                         anchor_id = data.delete('&id') # extract anchor id
+            instance = if object.has_key?('&id')
+                         anchor_id = object['&id'] # extract anchor id
                          if Serializable::Aliasing.restored?(self, anchor_id)
                            # in case of cyclic references an alias will already have restored the anchor instance
                            # (default constructed); retrieve that instance here for deserialization of properties
@@ -192,19 +192,14 @@ module FIRM
             anchor_data = Serializable::Aliasing.get_anchor_data(self)
             # retroactively insert the anchor in the anchored instance's serialization data
             anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
-            json_data["data"] = {
-              '*id' => anchor
-            }
+            json_data['*id'] = anchor
           else
             # register anchor object **before** serializing properties to properly handle cycling (bidirectional
             # references)
-            if defined? JRUBY_VERSION
-              # JRuby has a problem modifying a hash while iterating it so we create a new copy here which we
-              # merge with the original because that may be updated with an anchor id
-              json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
-              json_data['data'].merge!(json_data['data'].transform_values { |v| v.respond_to?(:as_json) ? v.as_json : v })
-            else
-              json_data['data'] = for_serialize(Serializable::Aliasing.register_anchor_object(self, {}))
+            Serializable::Aliasing.register_anchor_object(self, json_data)
+            data = for_serialize({})
+            unless data.empty?
+              json_data['data'] = data
               json_data['data'].transform_values! { |v| v.respond_to?(:as_json) ? v.as_json : v }
             end
           end
