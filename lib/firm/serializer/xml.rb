@@ -20,7 +20,7 @@ module FIRM
           private_constant :TLS_STATE_KEY
 
           def xml_state
-            ::Thread.current[TLS_STATE_KEY] ||= []
+            Serializable.tls_vars[TLS_STATE_KEY] ||= []
           end
           private :xml_state
 

@@ -70,7 +70,7 @@ module FIRM
         private_constant :TLS_PARSE_STACK_KEY
 
         def safe_deserialize
-          ::Thread.current[TLS_SAFE_DESERIALIZE_KEY] ||= []
+          Serializable.tls_vars[TLS_SAFE_DESERIALIZE_KEY] ||= []
         end
         private :safe_deserialize
 
@@ -83,7 +83,7 @@ module FIRM
         end
 
         def parse_stack
-          ::Thread.current[TLS_PARSE_STACK_KEY] ||= []
+          Serializable.tls_vars[TLS_PARSE_STACK_KEY] ||= []
         end
         private :parse_stack
 

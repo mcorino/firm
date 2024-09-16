@@ -143,6 +143,12 @@ module FIRM
 
     class << self
 
+      TLS_VARS_KEY = :firm_tls_vars.freeze
+
+      def tls_vars
+        Thread.current[TLS_VARS_KEY] ||= {}
+      end
+
       def serializables
         @serializables ||= ::Set.new
       end
@@ -198,7 +204,7 @@ module FIRM
       private_constant :TLS_ALIAS_STACK_KEY
 
       def anchor_object_registry_stack
-        ::Thread.current[TLS_ANCHOR_OBJECTS_KEY] ||= []
+        Serializable.tls_vars[TLS_ANCHOR_OBJECTS_KEY] ||= []
       end
       private :anchor_object_registry_stack
 
@@ -252,7 +258,7 @@ module FIRM
       end
 
       def anchor_references_stack
-        ::Thread.current[TLS_ALIAS_STACK_KEY] ||= []
+        Serializable.tls_vars[TLS_ALIAS_STACK_KEY] ||= []
       end
       private :anchor_references_stack
 
