@@ -43,6 +43,10 @@ FIRM supports (de-)serializing many core Ruby objects out of the box including:
 - `Date`
 - `DateTime`
 
+For security reasons FIRM does **not** support direct (de-)serializing of `Class` objects but will rather
+serialize (and deserialize) these as their scoped string names. Customized property setters can be used to
+resolve Class objects from these names if really needed.
+
 FIRM also supports a simple scheme to provide (de-)serialization support for user defined classes. 
 
 FIRM provides object aliasing support for JSON and XML in a similar fashion as the standard support provided

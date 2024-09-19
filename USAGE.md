@@ -148,6 +148,14 @@ FIRM supports (de-)serializing the following core Ruby objects out of the box:
 - `Date`
 - `DateTime`
 
+For security reasons FIRM does **not** support direct (de-)serializing of `Class` objects but will rather
+serialize (and deserialize) these as their scoped string names. 
+
+This means that code like `FIRM.deserialize(MyClass.serialize)` will result in a string with the scoped name of the
+class `MyClass`.
+
+Customized property setters (see below) can be used to resolve Class objects from these names if really needed.
+
 ## User defined class serialization
 
 User defined classes can be declared serializable for FIRM by including the `FIRM::Serializable` mixin module.
