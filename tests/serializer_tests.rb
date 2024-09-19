@@ -292,6 +292,15 @@ module SerializerTestMixin
 
   end
 
+  def test_class
+
+    obj_serial = [Point, Colour].serialize
+    obj_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(::Array, obj_new)
+    assert_true(obj_new.all? { |e| String === e })
+
+  end
+
   class PointsOwner
     include FIRM::Serializable
 

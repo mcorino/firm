@@ -133,6 +133,22 @@ module FIRM
           end
         end
 
+        # registered as tag 'Class' but that is never actually used
+        define_xml_handler(::Class, 'Class') do
+          # overload to emit 'String' tags
+          def create_type_node(xml)
+            xml.add_child(Nokogiri::XML::Node.new('String', xml.document))
+          end
+          def to_xml(xml, value)
+            create_type_node(xml).add_child(Nokogiri::XML::CDATA.new(xml.document, value.name))
+            xml
+          end
+          def from_xml(xml)
+            # should never be called
+            raise Serializable::Exception, 'Unsupported Class deserialization'
+          end
+        end
+
         define_xml_handler(::NilClass, :nil) do
           def to_xml(xml, _value)
             create_type_node(xml)
