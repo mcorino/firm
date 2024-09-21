@@ -68,7 +68,7 @@ module FIRM
         end
       end
 
-      # Mixin module to patch later version of the Psych YAMLTree class to emit simple strings for
+      # Derived Psych YAMLTree class to emit simple strings for
       # Class instances
       class NoClassYAMLTree < ::Psych::Visitors::YAMLTree
 
