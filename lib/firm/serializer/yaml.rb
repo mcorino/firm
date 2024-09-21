@@ -70,7 +70,7 @@ module FIRM
 
       # Mixin module to patch later version of the Psych YAMLTree class to emit simple strings for
       # Class instances
-      module YAMLTreePatch
+      class NoClassYAMLTree < ::Psych::Visitors::YAMLTree
 
         def visit_Class(o)
           raise TypeError, "can't dump anonymous module: #{o}" unless o.name
@@ -85,11 +85,7 @@ module FIRM
       end
 
       def self.dump(obj, io=nil, **)
-        ::YAML.dump(obj, io)
-        visitor = Psych::Visitors::YAMLTree.create
-        if visitor.respond_to?(:visit_Class)
-          visitor.extend(YAMLTreePatch)
-        end
+        visitor = YAML::NoClassYAMLTree.create
         visitor << obj
         visitor.tree.yaml io
       end
