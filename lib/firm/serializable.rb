@@ -664,9 +664,8 @@ module FIRM
           derived.class_eval <<~__CODE
             module SerializerMethods 
               def for_serialize(hash, excludes = ::Set.new)
-                hash = super(hash, excludes | #{derived.name}.excluded_serializer_properties) 
                 #{derived.name}.serializer_properties.each { |prop| prop.serialize(self, hash, excludes) }
-                hash 
+                super(hash, excludes | #{derived.name}.excluded_serializer_properties) 
               end
               protected :for_serialize
   

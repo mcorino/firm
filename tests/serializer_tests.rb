@@ -607,6 +607,90 @@ module SerializerTestMixin
     assert_equal(obj_new.map[:five].object_id, obj_new.map[:six].object_id)
   end
 
+  class Shape
+    include FIRM::Serializable
+    property :kind
+
+    def initialize(kind = :circle)
+      @kind = kind
+    end
+
+    attr_accessor :kind
+  end
+
+  class ShapeOwner
+    include FIRM::Serializable
+    property :shapes
+    def initialize
+      @shapes = []
+    end
+
+    attr_accessor :shapes
+  end
+
+  class Grid < ShapeOwner
+    property :dimensions
+    property :cells
+
+    DIMENSIONS = Struct.new(:rows, :columns)
+
+    def initialize(rows=nil, columns=nil)
+      super()
+      @dimensions = DIMENSIONS.new(rows || 3, columns || 3)
+      @cells = ::Array.new(@dimensions.rows*@dimensions.columns)
+    end
+
+    attr_reader :dimensions
+
+    def place_shape_at(row, col, shape)
+      shapes << shape
+      @cells[(row*dimensions.columns)+col] = shape
+      self
+    end
+
+    def get_shape_at(row, col)
+      @cells.at((row*dimensions.columns)+col)
+    end
+
+
+    private
+
+    def set_dimensions(dimensions)
+      @dimensions = dimensions
+    end
+
+    def get_cells
+      @cells
+    end
+
+    def set_cells(cells)
+      @cells = cells
+    end
+  end
+
+  def test_inherited_aliases
+
+    grid = Grid.new(2,2)
+               .place_shape_at(0, 0, Shape.new(:circle))
+               .place_shape_at(0, 1, Shape.new(:rect))
+               .place_shape_at(1,0, Shape.new(:cross))
+               .place_shape_at(1,1, Shape.new(:diamond))
+    obj_serial = grid.serialize
+    grid_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(Grid, grid_new)
+    assert_equal(4, grid_new.shapes.size)
+    assert_equal(:circle, grid_new.get_shape_at(0, 0).kind)
+    assert_equal(:rect, grid_new.get_shape_at(0, 1).kind)
+    assert_equal(:cross, grid_new.get_shape_at(1, 0).kind)
+    assert_equal(:diamond, grid_new.get_shape_at(1, 1).kind)
+    2.times do |r|
+      2.times do |c|
+        assert_true(grid_new.shapes.include?(grid_new.get_shape_at(r, c)))
+      end
+    end
+
+  end
+
   class House
 
     include FIRM::Serializable
