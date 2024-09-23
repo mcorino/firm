@@ -795,14 +795,18 @@ module SerializerTestMixin
     assert_equal(hash_new.size, hash_new[:self].size)
     assert_equal(hash_new.object_id, hash_new[:self].object_id)
 
-    set = ::Set.new([[1,2], {one: 1}])
-    set << set
-    obj_serial = set.serialize
-    set_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
-    assert_instance_of(::Set, set_new)
-    assert_true(set_new.any? { |e| ::Array === e })
-    assert_true(set_new.any? { |e| ::Hash === e })
-    assert_true(set_new.any? { |e| ::Set === e && set_new.object_id == e.object_id })
+    # the JRuby Psych implementation has a bug preventing cyclic reference support
+    # for Set objects
+    unless defined? JRUBY_VERSION
+      set = ::Set.new([[1,2], {one: 1}])
+      set << set
+      obj_serial = set.serialize(pretty: true)
+      set_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+      assert_instance_of(::Set, set_new)
+      assert_true(set_new.any? { |e| ::Array === e })
+      assert_true(set_new.any? { |e| ::Hash === e })
+      assert_true(set_new.any? { |e| ::Set === e && set_new.object_id == e.object_id })
+    end
 
     ostruct = ::OpenStruct.new(one: 1, two: 2)
     ostruct.me = ostruct
