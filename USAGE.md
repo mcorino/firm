@@ -749,7 +749,11 @@ encountered with a special 'anchor' id attached and serialize only shallow 'alia
 other reference of the same instance encountered while serializing.
 On deserialization the same instance will be restored for the 'anchored' copy as well as any 'alias' references.
 
-Aliasing is only supported for **user defined** serializable classes and named Struct (-derived) classes.
+Aliasing is supported for **user defined** serializable classes, the core container classes (`Array`, `Hash`, `Set`), 
+the `OpenStruct` class and named `Struct`(-derived) classes.
+
+> **NOTE**: When using the `:yaml` format aliasing will also be supported for other classes like `Time`, `Date`, 
+> `DateTime` etc. FIRM however does *not* extend it's aliasing support to these classes for `:json` or `:xml` format. 
 
 The following example showcases this functionality.
 
@@ -843,15 +847,9 @@ extpath2 = ExtendedPath.deserialize(extpath_json)
 FIRM automatically recognizes and handles cyclic references of aliasable objects.
 
 As this support is based on the FIRM aliasing support (except for the YAML format) handling cyclic references is 
-restricted to those classes that support aliasing.<br>
-In particular users should avoid cyclic references of the following instances:
-- Array
-- Hash
-- Set
-- OpenStruct
+restricted to those classes for which FIRM supports aliasing.
 
-In practice this should not be a real issue as having cyclic references of these kind of generic container objects
-should be considered **BAD** programming.
+> **CAVEAT**: The JRuby Psych implementation has a bug that breaks cyclic reference support for `Set` objects. 
 
 ### Custom initialization for deserialization 
 

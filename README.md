@@ -50,7 +50,7 @@ resolve Class objects from these names if really needed.
 FIRM also supports a simple scheme to provide (de-)serialization support for user defined classes. 
 
 FIRM provides object aliasing support for JSON and XML in a similar fashion as the standard support provided
-by YAML. All user defined serializable class as well as **named** `Struct`-derived classes support aliasing.
+by YAML.
 
 FIRM also automatically recognizes and handles cyclic references of aliasable objects.
 
