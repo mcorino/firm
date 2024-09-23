@@ -44,15 +44,64 @@ module FIRM
         alias key? include?
       end
 
-      # Mixin module to patch singleton_clas of the Hash class to make Hash-es
-      # JSON creatable (#json_creatable? returns true).
-      module HashClassPatch
-        # Create a new Hash instance from deserialized JSON data.
-        # @param [Hash] object deserialized JSON object
-        # @return [Hash] restored Hash instance
-        def json_create(object)
-          object['data'].to_h
+      module ContainerPatch
+
+        def self.included(base)
+          class << base
+            def json_new(object, &block)
+              # deserializing (anchor) object or alias
+              if object.has_key?('*id')
+                if FIRM::Serializable::Aliasing.restored?(self, object['*id'])
+                  # resolving an already restored anchor for this alias
+                  FIRM::Serializable::Aliasing.resolve_anchor(self, object['*id'])
+                else
+                  # in case of cyclic references JSON will restore aliases before the anchors
+                  # so in this case we instantiate an instance here and register it as
+                  # the anchor; when the anchor is restored it will replace the contents of this
+                  # instance with the restored elements
+                  FIRM::Serializable::Aliasing.restore_anchor(object['*id'], self.new)
+                end
+              else
+                instance = if object.has_key?('&id')
+                             anchor_id = object['&id'] # extract anchor id
+                             if FIRM::Serializable::Aliasing.restored?(self, anchor_id)
+                               # in case of cyclic references an alias will already have restored the anchor instance
+                               # (default constructed); retrieve that instance here for deserialization of properties
+                               FIRM::Serializable::Aliasing.resolve_anchor(self, anchor_id)
+                             else
+                               # restore the anchor here with a newly instantiated instance
+                               FIRM::Serializable::Aliasing.restore_anchor(anchor_id, self.new)
+                             end
+                           else
+                             self.new
+                           end
+                block.call(instance)
+                instance
+              end
+            end
+            private :json_new
+          end
         end
+
+        def build_json(&block)
+          json_data = {
+            ::JSON.create_id => self.class.name
+          }
+          if (anchor = FIRM::Serializable::Aliasing.get_anchor(self))
+            anchor_data = FIRM::Serializable::Aliasing.get_anchor_data(self)
+            # retroactively insert the anchor in the anchored instance's serialization data
+            anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
+            json_data['*id'] = anchor
+          else
+            # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+            # references)
+            FIRM::Serializable::Aliasing.register_anchor_object(self, json_data)
+            block.call(json_data)
+          end
+          json_data
+        end
+        private :build_json
+
       end
 
       class << self
@@ -279,100 +328,101 @@ class ::Class
 end
 
 class ::Array
+  include FIRM::Serializable::JSON::ContainerPatch
+
+  class << self
+    # Create a new Array instance from deserialized JSON data.
+    # @param [Hash] object deserialized JSON object
+    # @return [Array] restored Array instance
+    def json_create(object)
+      json_new(object) { |instance| instance.replace(object['data']) }
+    end
+  end
+
   def as_json(*)
-    collect { |e| e.respond_to?(:as_json) ? e.as_json : e }
+    build_json do |json_data|
+      json_data['data'] = collect { |e| e.respond_to?(:as_json) ? e.as_json : e }
+    end
   end
 end
 
 class ::Hash
+  include FIRM::Serializable::JSON::ContainerPatch
+
   class << self
-    include FIRM::Serializable::JSON::HashClassPatch
+    # Create a new Hash instance from deserialized JSON data.
+    # @param [Hash] object deserialized JSON object
+    # @return [Hash] restored Hash instance
+    def json_create(object)
+      json_new(object) { |instance| instance.replace(object['data'].to_h) }
+    end
   end
+
   def as_json(*)
-    {
-      ::JSON.create_id => self.class.name,
-      'data' => collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
-    }
+    build_json do |json_data|
+      json_data['data'] = collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
+    end
   end
 end
 
 class ::Set
+  include FIRM::Serializable::JSON::ContainerPatch
+
+  class << self
+    # Create a new Set instance from deserialized JSON data.
+    # @param [Hash] object deserialized JSON object
+    # @return [Set] restored Set instance
+    def json_create(object)
+      json_new(object) { |instance| instance.replace(object['a']) }
+    end
+  end
+
   def as_json(*)
-    {
-      JSON.create_id => self.class.name,
-      'a'            => to_a.as_json,
-    }
+    build_json do |json_data|
+      json_data['a'] = to_a.collect { |e| e.respond_to?(:as_json) ? e.as_json : e }
+    end
   end
 end
 
 class ::Struct
+  include FIRM::Serializable::JSON::ContainerPatch
+
   class << self
+    # Create a new Struct instance from deserialized JSON data.
+    # @param [Hash] object deserialized JSON object
+    # @return [Struct] restored Set instance
     def json_create(object)
-      # deserializing (anchor) object or alias
-      if object.has_key?('*id')
-        if FIRM::Serializable::Aliasing.restored?(self, object['*id'])
-          # resolving an already restored anchor for this alias
-          FIRM::Serializable::Aliasing.resolve_anchor(self, object['*id'])
-        else
-          # in case of cyclic references JSON will restore aliases before the anchors
-          # so in this case we allocate an instance here and register it as
-          # the anchor; when the anchor is restored it will re-use this instance to restore
-          # the properties
-          FIRM::Serializable::Aliasing.restore_anchor(object['*id'], self.allocate)
+        json_new(object) do |instance|
+          values = object['v']
+          instance.members.each_with_index { |n, i| instance[n] = values[i] }
         end
-      else
-        if object.has_key?('&id')
-          anchor_id = object['&id'] # extract anchor id
-          instance = if FIRM::Serializable::Aliasing.restored?(self, anchor_id)
-                       # in case of cyclic references an alias will already have restored the anchor instance
-                       # (default constructed); retrieve that instance here for deserialization of properties
-                       FIRM::Serializable::Aliasing.resolve_anchor(self, anchor_id)
-                     else
-                       # restore the anchor here with a newly instantiated instance
-                       FIRM::Serializable::Aliasing.restore_anchor(anchor_id, self.allocate)
-                     end
-          instance.__send__(:initialize, *object['v'])
-          instance
-        else
-          self.new(*object['v'])
-        end
-      end
     end
   end
 
   def as_json(*)
-    klass = self.class.name
-    klass.to_s.empty? and raise JSON::JSONError, "Only named structs are supported!"
-    # {
-    #   JSON.create_id => klass,
-    #   'v'            => values.as_json,
-    # }
-    json_data = {
-      ::JSON.create_id => klass
-    }
-    if (anchor = FIRM::Serializable::Aliasing.get_anchor(self))
-      anchor_data = FIRM::Serializable::Aliasing.get_anchor_data(self)
-      # retroactively insert the anchor in the anchored instance's serialization data
-      anchor_data['&id'] = anchor unless anchor_data.has_key?('&id')
-      json_data['*id'] = anchor
-    else
-      # register anchor object **before** serializing properties to properly handle cycling (bidirectional
-      # references)
-      FIRM::Serializable::Aliasing.register_anchor_object(self, json_data)
-      json_data['v'] = values.as_json
+    self.class.name.to_s.empty? and raise JSON::JSONError, "Only named structs are supported!"
+    build_json do |json_data|
+      json_data['v'] = values.collect { |e| e.respond_to?(:as_json) ? e.as_json : e }
     end
-    json_data
   end
 end
 
 class ::OpenStruct
+  include FIRM::Serializable::JSON::ContainerPatch
+
+  class << self
+    # Create a new OpenStruct instance from deserialized JSON data.
+    # @param [Hash] object deserialized JSON object
+    # @return [OpenStruct] restored OpenStruct instance
+    def json_create(object)
+        json_new(object) { |instance| object['t'].each { |k,v| instance[k] = v } }
+    end
+  end
+
   def as_json(*)
-    klass = self.class.name
-    klass.to_s.empty? and raise JSON::JSONError, "Only named structs are supported!"
-    {
-      JSON.create_id => klass,
-      't'            => table.as_json,
-    }
+    build_json do |json_data|
+      json_data['t'] = table.collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
+    end
   end
 end
 
