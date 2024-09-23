@@ -770,10 +770,50 @@ module SerializerTestMixin
     struct = CyclicTest.new
     struct.list = [struct]
     obj_serial = struct.serialize
-    struct_new = nil
-    assert_nothing_raised { struct_new = FIRM.deserialize(obj_serial) }
+    struct_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
     assert_instance_of(CyclicTest, struct_new)
     assert_equal(struct_new.object_id, struct_new.list[0].object_id)
+  end
+
+  def test_cyclic_core_containers
+
+    array = [1, 2, 3]
+    array << array
+    obj_serial = array.serialize
+    arr_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(::Array, arr_new)
+    assert_instance_of(::Array, arr_new.last)
+    assert_equal(arr_new.size, arr_new.last.size)
+    assert_equal(arr_new.object_id, arr_new.last.object_id)
+
+    hash = { one: 1, two: 2 }
+    hash[:self] = hash
+    obj_serial = hash.serialize
+    hash_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(::Hash, hash_new)
+    assert_instance_of(::Hash, hash_new[:self])
+    assert_equal(hash_new.size, hash_new[:self].size)
+    assert_equal(hash_new.object_id, hash_new[:self].object_id)
+
+    set = ::Set.new([[1,2], {one: 1}])
+    set << set
+    obj_serial = set.serialize
+    set_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(::Set, set_new)
+    assert_true(set_new.any? { |e| ::Array === e })
+    assert_true(set_new.any? { |e| ::Hash === e })
+    assert_true(set_new.any? { |e| ::Set === e && set_new.object_id == e.object_id })
+
+    ostruct = ::OpenStruct.new(one: 1, two: 2)
+    ostruct.me = ostruct
+    obj_serial = ostruct.serialize
+    ostruct_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+    assert_instance_of(::OpenStruct, ostruct_new)
+    assert_equal(1, ostruct_new.one)
+    assert_equal(2, ostruct_new.two)
+    assert_instance_of(::OpenStruct, ostruct_new.me)
+    assert_equal(ostruct_new.object_id, ostruct_new.me.object_id)
+
   end
 
   def test_nested_hash_with_complex_keys
