@@ -796,7 +796,7 @@ module SerializerTestMixin
     assert_equal(hash_new.object_id, hash_new[:self].object_id)
 
     # the JRuby Psych implementation has a bug preventing cyclic reference support
-    # for Set objects
+    # for Set objects (https://github.com/jruby/jruby/issues/8352)
     unless defined? JRUBY_VERSION
       set = ::Set.new([[1,2], {one: 1}])
       set << set
