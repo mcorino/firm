@@ -56,6 +56,7 @@ module FIRM
             def create_type_node(xml)
               xml.add_child(Nokogiri::XML::Node.new(tag.to_s, xml.document))
             end
+            private :create_type_node
             def to_xml(_, _)
               raise Serializable::Exception, "Missing serialization method for #{klass} XML handler"
             end
@@ -64,6 +65,42 @@ module FIRM
             end
           end
           private_constant :HandlerMethods
+
+          module AliasableHandler
+            def build_xml(xml, value, &block)
+              node = create_type_node(xml)
+              node['class'] = value.class.name
+              if (anchor = Serializable::Aliasing.get_anchor(value))
+                anchor_data = Serializable::Aliasing.get_anchor_data(value)
+                # retroactively insert the anchor in the anchored instance's serialization data
+                anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
+                node['alias'] = "#{anchor}"
+              else
+                # register anchor object **before** serializing properties to properly handle cycling (bidirectional
+                # references)
+                Serializable::Aliasing.register_anchor_object(value, node)
+                block.call(node)
+              end
+              xml
+            end
+            private :build_xml
+            def create_from_xml(xml, &block)
+              klass = ::Object.const_get(xml['class'])
+              if xml.has_attribute?('alias')
+                # deserializing alias
+                Serializable::Aliasing.resolve_anchor(klass, xml['alias'].to_i)
+              else
+                instance = klass.new
+                # in case this is an anchor restore the anchor instance before restoring the member values
+                # and afterwards initialize the instance with the restored member values
+                Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
+                block.call(instance)
+                instance
+              end
+            end
+            private :create_from_xml
+          end
+          private_constant :AliasableHandler
 
           def xml_handlers
             @xml_handlers ||= {}
@@ -86,9 +123,10 @@ module FIRM
           end
           private :get_xml_handler
 
-          def define_xml_handler(klass, tag=nil, &block)
+          def define_xml_handler(klass, tag=nil, aliasable: false, &block)
             hnd_klass = Class.new
             hnd_klass.singleton_class.include(HandlerMethods)
+            hnd_klass.singleton_class.include(AliasableHandler) if aliasable
             tag_code = if tag
                          ::Symbol === tag ? ":#{tag}" : "'#{tag.to_s}'"
                        else
@@ -179,16 +217,14 @@ module FIRM
           end
         end
 
-        define_xml_handler(::Array) do
+        define_xml_handler(::Array, aliasable: true) do
           def to_xml(xml, value)
-            node = create_type_node(xml)
-            value.each do |v|
-              Serializable::XML.to_xml(node, v)
-            end
-            xml
+            build_xml(xml, value) { |node| value.each { |v| Serializable::XML.to_xml(node, v) } }
           end
           def from_xml(xml)
-            xml.elements.collect { |child| Serializable::XML.from_xml(child) }
+            create_from_xml(xml) do |instance|
+              instance.replace(xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+            end
           end
         end
 
@@ -243,56 +279,35 @@ module FIRM
           end
         end
 
-        define_xml_handler(::Hash) do
+        define_xml_handler(::Hash, aliasable: true) do
           def to_xml(xml, value)
-            node = create_type_node(xml)
-            value.each_pair do |k,v|
-              pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
-              Serializable::XML.to_xml(pair, k)
-              Serializable::XML.to_xml(pair, v)
+            build_xml(xml, value) do |node|
+              value.each_pair do |k,v|
+                pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
+                Serializable::XML.to_xml(pair, k)
+                Serializable::XML.to_xml(pair, v)
+              end
             end
-            xml
           end
           def from_xml(xml)
-            xml.elements.inject({}) do |hash, pair|
-              k, v = pair.elements
-              hash[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
-              hash
+            create_from_xml(xml) do |instance|
+              xml.elements.inject(instance) do |hash, pair|
+                k, v = pair.elements
+                instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
+                instance
+              end
             end
           end
         end
 
-        define_xml_handler(::Struct) do
+        define_xml_handler(::Struct, aliasable: true) do
           def to_xml(xml, value)
-            node = create_type_node(xml)
-            node['class'] = value.class.name
-            if (anchor = Serializable::Aliasing.get_anchor(value))
-              anchor_data = Serializable::Aliasing.get_anchor_data(value)
-              # retroactively insert the anchor in the anchored instance's serialization data
-              anchor_data['anchor'] = anchor unless anchor_data.has_attribute?('anchor')
-              node['alias'] = "#{anchor}"
-            else
-              # register anchor object **before** serializing properties to properly handle cycling (bidirectional
-              # references)
-              Serializable::Aliasing.register_anchor_object(value, node)
-              value.each do |v|
-                Serializable::XML.to_xml(node, v)
-              end
-            end
-            xml
+            build_xml(xml, value) { |node| value.each { |v| Serializable::XML.to_xml(node, v) } }
           end
           def from_xml(xml)
-            # deserializing alias
-            klass = ::Object.const_get(xml['class'])
-            if xml.has_attribute?('alias')
-              Serializable::Aliasing.resolve_anchor(klass, xml['alias'].to_i)
-            else
-              instance = klass.allocate
-              # in case this is an anchor restore the anchor instance before restoring the member values
-              # and afterwards initialize the instance with the restored member values
-              Serializable::Aliasing.restore_anchor(xml['anchor'].to_i, instance) if xml.has_attribute?('anchor')
-              instance.__send__(:initialize, *xml.elements.collect { |child| Serializable::XML.from_xml(child) })
-              instance
+            create_from_xml(xml) do |instance|
+              elems = xml.elements
+              instance.members.each_with_index { |n, i| instance[n] = Serializable::XML.from_xml(elems[i]) }
             end
           end
         end
@@ -408,34 +423,34 @@ module FIRM
           end
         end
 
-        define_xml_handler(::Set) do
+        define_xml_handler(::Set, aliasable: true) do
           def to_xml(xml, value)
-            node = create_type_node(xml)
-            value.each do |v|
-              Serializable::XML.to_xml(node, v)
-            end
-            xml
+            build_xml(xml, value) { |node| value.each { |v| Serializable::XML.to_xml(node, v) } }
           end
           def from_xml(xml)
-            ::Set.new(xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+            create_from_xml(xml) do |instance|
+              instance.replace(xml.elements.collect { |child| Serializable::XML.from_xml(child) })
+            end
           end
         end
 
-        define_xml_handler(::OpenStruct) do
+        define_xml_handler(::OpenStruct, aliasable: true) do
           def to_xml(xml, value)
-            node = create_type_node(xml)
-            value.each_pair do |k,v|
-              pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
-              Serializable::XML.to_xml(pair, k)
-              Serializable::XML.to_xml(pair, v)
+            build_xml(xml, value) do |node|
+              value.each_pair do |k,v|
+                pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
+                Serializable::XML.to_xml(pair, k)
+                Serializable::XML.to_xml(pair, v)
+              end
             end
-            xml
           end
           def from_xml(xml)
-            xml.elements.inject(::OpenStruct.new) do |hash, pair|
-              k, v = pair.elements
-              hash[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
-              hash
+            create_from_xml(xml) do |instance|
+              xml.elements.inject(::OpenStruct.new) do |hash, pair|
+                k, v = pair.elements
+                instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
+                instance
+              end
             end
           end
         end
