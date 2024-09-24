@@ -1084,4 +1084,62 @@ module SerializerTestMixin
     assert_equal(obj.symbol, obj_new.symbol)
   end
 
+  def run_test_threads
+    data = { list: ::Array.new(5, [ PropTest.new, Point.new(0, 0), Point.new(10, 10), Point.new(100, 400), Rect.new(20, 20, 40, 40) ]) }
+    results = []
+    threads = ::Array.new(10) do
+      Thread.new do
+        results << run_test_fibers(data)
+      end
+    end
+    threads.each { |t| t.join }
+    results
+  end
+
+  def run_test_fibers(data)
+    fibers = ::Array.new(100) do |_|
+      Fiber.new do
+        s = assert_nothing_raised { data.serialize }
+        Fiber.yield nil
+        new_data = assert_nothing_raised { FIRM.deserialize(s) }
+        Fiber.yield nil
+        assert_instance_of(::Hash, new_data)
+        assert_instance_of(::Array, new_data[:list])
+        assert_equal(5, new_data[:list].size)
+        assert_true(new_data[:list].all? { |e| e.is_a?(::Array) && e.size == 5 })
+        5.times { |i| assert_equal(data[:list].first[i], new_data[:list].first[i]) }
+        4.times do |n|
+          5.times { |i| assert_equal(new_data[:list].first[i].object_id, new_data[:list][n+1][i].object_id) }
+        end
+        new_data
+      end
+    end
+    results = []
+    begin
+      fibers = fibers.select do |fiber|
+        if (rc = fiber.resume)
+          results << rc
+          false
+        else
+          true
+        end
+      end
+    end until fibers.empty?
+    results
+  end
+
+  def test_threading
+
+    results = run_test_threads
+
+    set = results.inject(::Set.new) do |set, fiber_results|
+      fiber_results.inject(set) { |set, fiber_result| set.merge(fiber_result[:list][1].collect { |o| o.object_id }) }
+    end
+
+    # although we started with a single unique dataset, distributing that through 10 threads * 100 fibers
+    # to serialize and deserialize should result in 1000 distinct datasets with each 5 distinct data instances
+    assert_equal(5000, set.size)
+
+  end
+
 end
