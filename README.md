@@ -8,11 +8,11 @@
 
 ## Introduction
 
-FIRM is a pure Ruby library that works across different Ruby implementations like MRI Ruby and JRuby providing output 
-format independent object (de-)serialization support.
+FIRM is a pure Ruby library that works across different Ruby implementations like MRI Ruby and JRuby providing format 
+independent object (de-)serialization support.
 
 FIRM is explicitly **NOT** intended as a non-discriminative marshaling library (dumping any object's attributes)
-but rather as structured and safe serialization library requiring users to think about what state they want
+but rather as a structured and safe serialization library requiring users to think about what state they want
 persisted (and possibly in what form) and what not.
 Straightforward attribute serialization is simple with minimal intrusion on user code.
 In addition various customization options are available to tweak (de-)serialization for a perfect fit if needed. 
@@ -47,12 +47,13 @@ For security reasons FIRM does **not** support direct (de-)serializing of `Class
 serialize (and deserialize) these as their scoped string names. Customized property setters can be used to
 resolve Class objects from these names if really needed.
 
-FIRM also supports a simple scheme to provide (de-)serialization support for user defined classes. 
+Serialization support for user defined classes is available through a simple DSL scheme.
 
 FIRM provides object aliasing support for JSON and XML in a similar fashion as the standard support provided
-by YAML.
+by YAML.<br>
+In addition FIRM automatically recognizes and handles cyclic references of aliasable objects.
 
-FIRM also automatically recognizes and handles cyclic references of aliasable objects.
+FIRM serialization is also thread safe and supports re-entrancy (i.e. nested serialization).
 
 ## Installing FIRM
 
