@@ -3,7 +3,11 @@
 
 
 require 'set'
-require 'ostruct'
+# from Ruby 3.5.0 OpenStruct will not be available by default anymore
+begin
+  require 'ostruct'
+rescue LoadError
+end
 require 'date'
 
 module FIRM
@@ -434,22 +438,24 @@ module FIRM
           end
         end
 
-        define_xml_handler(::OpenStruct, aliasable: true) do
-          def to_xml(xml, value)
-            build_xml(xml, value) do |node|
-              value.each_pair do |k,v|
-                pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
-                Serializable::XML.to_xml(pair, k)
-                Serializable::XML.to_xml(pair, v)
+        if ::Object.const_defined?(:OpenStruct)
+          define_xml_handler(::OpenStruct, aliasable: true) do
+            def to_xml(xml, value)
+              build_xml(xml, value) do |node|
+                value.each_pair do |k,v|
+                  pair = node.add_child(Nokogiri::XML::Node.new('P', node.document))
+                  Serializable::XML.to_xml(pair, k)
+                  Serializable::XML.to_xml(pair, v)
+                end
               end
             end
-          end
-          def from_xml(xml)
-            create_from_xml(xml) do |instance|
-              xml.elements.inject(::OpenStruct.new) do |hash, pair|
-                k, v = pair.elements
-                instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
-                instance
+            def from_xml(xml)
+              create_from_xml(xml) do |instance|
+                xml.elements.inject(::OpenStruct.new) do |hash, pair|
+                  k, v = pair.elements
+                  instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
+                  instance
+                end
               end
             end
           end

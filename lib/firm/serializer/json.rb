@@ -14,7 +14,12 @@ require 'json/add/bigdecimal' if ::Object.const_defined?(:BigDecimal)
 require 'json/add/rational'
 require 'json/add/complex'
 require 'json/add/set'
-require 'json/add/ostruct'
+# from Ruby 3.5.0 OpenStruct will not be available by default anymore
+begin
+  require 'ostruct'
+  require 'json/add/ostruct'
+rescue LoadError
+end
 
 module FIRM
 
@@ -107,7 +112,8 @@ module FIRM
       class << self
         def serializables
           set = ::Set.new( [::NilClass, ::TrueClass, ::FalseClass, ::Integer, ::Float, ::String, ::Array, ::Hash,
-                     ::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct])
+                     ::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set])
+          set << ::OpenStruct if ::Object.const_defined?(:OpenStruct)
           set << ::BigDecimal if ::Object.const_defined?(:BigDecimal)
           set
         end
@@ -407,21 +413,23 @@ class ::Struct
   end
 end
 
-class ::OpenStruct
-  include FIRM::Serializable::JSON::ContainerPatch
+if ::Object.const_defined?(:OpenStruct)
+  class ::OpenStruct
+    include FIRM::Serializable::JSON::ContainerPatch
 
-  class << self
-    # Create a new OpenStruct instance from deserialized JSON data.
-    # @param [Hash] object deserialized JSON object
-    # @return [OpenStruct] restored OpenStruct instance
-    def json_create(object)
-        json_new(object) { |instance| object['t'].each { |k,v| instance[k] = v } }
+    class << self
+      # Create a new OpenStruct instance from deserialized JSON data.
+      # @param [Hash] object deserialized JSON object
+      # @return [OpenStruct] restored OpenStruct instance
+      def json_create(object)
+          json_new(object) { |instance| object['t'].each { |k,v| instance[k] = v } }
+      end
     end
-  end
 
-  def as_json(*)
-    build_json do |json_data|
-      json_data['t'] = table.collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
+    def as_json(*)
+      build_json do |json_data|
+        json_data['t'] = table.collect { |k,v| [k.respond_to?(:as_json) ? k.as_json : k, v.respond_to?(:as_json) ? v.as_json : v] }
+      end
     end
   end
 end

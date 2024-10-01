@@ -5,7 +5,11 @@
 require 'yaml'
 require 'date'
 require 'set'
-require 'ostruct'
+# from Ruby 3.5.0 OpenStruct will not be available by default anymore
+begin
+  require 'ostruct'
+rescue LoadError
+end
 
 module FIRM
 
@@ -15,7 +19,8 @@ module FIRM
 
       class << self
         def serializables
-          list = [::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set, ::OpenStruct]
+          list = [::Date, ::DateTime, ::Range, ::Rational, ::Complex, ::Regexp, ::Struct, ::Symbol, ::Time, ::Set]
+          list.push(::OpenStruct) if ::Object.const_defined?(:OpenStruct)
           list.push(::BigDecimal) if ::Object.const_defined?(:BigDecimal)
           list
         end

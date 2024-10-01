@@ -32,10 +32,18 @@ module FIRM
 end
 
 require 'set'
-require 'ostruct'
+# from Ruby 3.5.0 OpenStruct will not be available by default anymore
+begin
+  require 'ostruct'
+rescue LoadError
+end
 
-[::Array, ::Hash, ::Struct, ::Range, ::Rational, ::Complex, ::Regexp, ::Set, ::OpenStruct, ::Time, ::Date, ::DateTime].each do |c|
+[::Array, ::Hash, ::Struct, ::Range, ::Rational, ::Complex, ::Regexp, ::Set, ::Time, ::Date, ::DateTime].each do |c|
   c.include FIRM::Serializable::CoreExt
+end
+
+if ::Object.const_defined?(:OpenStruct)
+  ::OpenStruct.include FIRM::Serializable::CoreExt
 end
 
 if ::Object.const_defined?(:BigDecimal)
