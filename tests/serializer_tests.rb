@@ -1133,7 +1133,7 @@ module SerializerTestMixin
     results = run_test_threads
 
     set = results.inject(::Set.new) do |set, fiber_results|
-      fiber_results.inject(set) { |set, fiber_result| set.merge(fiber_result[:list][1].collect { |o| o.object_id }) }
+      fiber_results.inject(set) { |set_, fiber_result| set_.merge(fiber_result[:list][1].collect { |o| o.object_id }) }
     end
 
     # although we started with a single unique dataset, distributing that through 10 threads * 100 fibers
