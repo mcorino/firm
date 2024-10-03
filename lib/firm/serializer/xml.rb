@@ -64,7 +64,7 @@ module FIRM
             def to_xml(_, _)
               raise Serializable::Exception, "Missing serialization method for #{klass} XML handler"
             end
-            def from_xml(xml)
+            def from_xml(_xml)
               raise Serializable::Exception, "Missing serialization method for #{klass} XML handler"
             end
           end
@@ -185,7 +185,7 @@ module FIRM
             create_type_node(xml).add_child(Nokogiri::XML::CDATA.new(xml.document, value.name))
             xml
           end
-          def from_xml(xml)
+          def from_xml(_xml)
             # should never be called
             raise Serializable::Exception, 'Unsupported Class deserialization'
           end
@@ -295,10 +295,9 @@ module FIRM
           end
           def from_xml(xml)
             create_from_xml(xml) do |instance|
-              xml.elements.inject(instance) do |hash, pair|
+              xml.elements.each do |pair|
                 k, v = pair.elements
                 instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
-                instance
               end
             end
           end
@@ -451,10 +450,9 @@ module FIRM
             end
             def from_xml(xml)
               create_from_xml(xml) do |instance|
-                xml.elements.inject(::OpenStruct.new) do |hash, pair|
+                xml.elements.each do |pair|
                   k, v = pair.elements
                   instance[Serializable::XML.from_xml(k)] = Serializable::XML.from_xml(v)
-                  instance
                 end
               end
             end
