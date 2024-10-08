@@ -27,6 +27,8 @@ module FIRM
 
     module JSON
 
+      CREATE_ID = 'rbklass'.freeze
+
       # Derived Hash class to use for deserialized JSON object data which
       # supports using Symbol keys.
       class ObjectHash < ::Hash
@@ -162,6 +164,8 @@ module FIRM
         begin
           # initialize anchor registry
           Serializable::Aliasing.start_anchor_object_registry
+          # set custom (more compact) create_id
+          ::JSON.create_id = Serializable::JSON::CREATE_ID
           for_json = obj.respond_to?(:as_json) ? obj.as_json : obj
           if pretty
             if io || io.respond_to?(:write)
@@ -185,6 +189,8 @@ module FIRM
           Serializable::Aliasing.start_anchor_references
           # enable safe deserializing
           self.start_safe_deserialize
+          # set custom (more compact) create_id
+          ::JSON.create_id = Serializable::JSON::CREATE_ID
           ::JSON.parse!(source,
                         create_additions: true,
                         object_class: Serializable::JSON::ObjectHash)
