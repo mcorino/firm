@@ -39,7 +39,7 @@ FIRM supports (de-)serializing many core Ruby objects out of the box including:
 - `Time`
 - `Struct`
 - `Set`
-- `OpenStruct`
+- `OpenStruct` (optional starting from Ruby 3.5 which removes this class from the standard library)
 - `Date`
 - `DateTime`
 
