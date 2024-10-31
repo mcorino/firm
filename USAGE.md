@@ -203,6 +203,13 @@ To define a serializable property for a class the `#property` method can be used
 >>
 >> - `props` (Symbol,String) - one or more ids of serializable properties
 >> - `force` (Boolean) - overrides any `#disable_serialize` for the properties specified
+>> - `optional` (Object) - indicates optionality
+>>   - if `false` the property will not be optional
+>>   - `true` means optional if the serialized value == `nil`</br>
+>>   - any value other than 'false' or 'true' means optional if the serialize value equals that value;
+>>   - alternatively a Proc, Lambda (gets the object and the property id passed) or
+>>     UnboundMethod (gets the property id passed) can be specified  which
+>>     is called at serialization time to determine the default (optional) value
 >> 
 >> **Returns:**
 >>
@@ -224,6 +231,13 @@ To define a serializable property for a class the `#property` method can be used
 >>
 >> - `hash` (Hash) - a hash of pairs of property ids and getter/setter procs
 >> - `force` (Boolean) -  overrides any `#disable_serialize` for the properties specified
+>> - `optional` (Object) - indicates optionality
+>>   - if `false` the property will not be optional
+>>   - `true` means optional if the serialized value == `nil`</br>
+>>   - any value other than 'false' or 'true' means optional if the serialize value equals that value;
+>>   - alternatively a Proc, Lambda (gets the object and the property id passed) or
+>>     UnboundMethod (gets the property id passed) can be specified  which
+>>     is called at serialization time to determine the default (optional) value
 >>
 >> **Returns:**
 >>
@@ -247,6 +261,13 @@ To define a serializable property for a class the `#property` method can be used
 >>
 >> - `props` (Symbol,String) - one or more ids of serializable properties
 >> - `force` (Boolean) - overrides any `#disable_serialize` for the properties specified
+>> - `optional` (Object) - indicates optionality
+>>   - if `false` the property will not be optional
+>>   - `true` means optional if the serialized value == `nil`</br>
+>>   - any value other than 'false' or 'true' means optional if the serialize value equals that value;
+>>   - alternatively a Proc, Lambda (gets the object and the property id passed) or
+>>     UnboundMethod (gets the property id passed) can be specified  which
+>>     is called at serialization time to determine the default (optional) value
 >>
 >> **Yield Parameters:**
 >>
@@ -891,13 +912,13 @@ class Singleton
   # and leaves the property restoration to a subsequent call to the instance method #from_serialized(data).
   # Classes that do not support a default constructor can override this class method and
   # implement a custom initialization scheme.
-  # implement a custom creation scheme.
   # @param [Object] _data hash-like object containing deserialized property data (symbol keys)
   # @return [self] the object
   def init_from_serialized(_data)
     # nothing to initialize (already done in allocate)
     self
   end
+  protected :init_from_serialized
   
 end
 ```

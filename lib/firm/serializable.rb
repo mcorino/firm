@@ -12,12 +12,29 @@ module FIRM
     class Exception < RuntimeError; end
 
     class Property
-      def initialize(klass, prop, proc=nil, force: false, handler: nil, &block)
+      def initialize(klass, prop, proc=nil, force: false, handler: nil, optional: false, &block)
         ::Kernel.raise ArgumentError, "Invalid property id [#{prop}]" unless ::String === prop || ::Symbol === prop
         ::Kernel.raise ArgumentError, "Duplicate property id [#{prop}]" if klass.has_serializer_property?(prop)
         @klass = klass
         @id = prop.to_sym
         @forced = force
+        @optional = optional.nil? || optional
+        @default = if @optional
+                     case optional
+                     when Proc
+                       ::Kernel.raise ArgumentError,
+                                      'Invalid optional value proc' unless optional.arity.abs == 2
+                       optional
+                     when UnboundMethod
+                       ::Kernel.raise ArgumentError,
+                                      'Invalid optional value method' unless optional.arity.abs == 1
+                       ->(obj, id) { optional.bind(obj).call(id) }
+                     else
+                       optional == true ? nil : optional
+                     end
+                   else
+                     nil
+                   end
         if block || handler
           if handler
             ::Kernel.raise ArgumentError,
@@ -56,7 +73,7 @@ module FIRM
       def serialize(obj, data, excludes)
         unless excludes.include?(@id)
           val = getter.call(obj)
-          unless Serializable === val && val.serialize_disabled? && !@forced
+          unless optional?(obj, val) || (Serializable === val && val.serialize_disabled? && !@forced)
             data[@id] = case val
                         when ::Array
                           val.select { |elem| !(Serializable === elem && elem.serialize_disabled?) }
@@ -75,9 +92,10 @@ module FIRM
         end
       end
 
-      def get(obj)
-        getter.call(obj)
+      def optional?(obj, val)
+        @optional && val == (Proc === @default ? @default.call(obj, @id) : @default)
       end
+      private :optional?
 
       def get_method(id)
         begin
@@ -319,6 +337,13 @@ module FIRM
       #   for setters and <code>"#{prop_id}()"</code> or <code>"#get_{prop_id}"</code> for getters.
       #   @param [Symbol,String] props one or more ids of serializable properties
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @param [Object] optional indicates optionality;
+      #                   if `false` the property will not be optional;
+      #                   `true` means optional if the serialized value == `nil`;
+      #                   any value other than 'false' or 'true' means optional if the serialize value equals that value;
+      #                   alternatively a Proc, Lambda (gets the object and the property id passed) or
+      #                   UnboundMethod (gets the property id passed) can be specified  which
+      #                   is called at serialization time to determine the default (optional) value
       #   @return [void]
       # @overload property(hash, force: false)
       #   Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
@@ -340,6 +365,13 @@ module FIRM
       #         to be able to support setting explicit nil values.
       #   @param [Hash] hash a hash of pairs of property ids and getter/setter procs
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @param [Object] optional indicates optionality;
+      #                   if `false` the property will not be optional;
+      #                   `true` means optional if the serialized value == `nil`;
+      #                   any value other than 'false' or 'true' means optional if the serialize value equals that value;
+      #                   alternatively a Proc, Lambda (gets the object and the property id passed) or
+      #                   UnboundMethod (gets the property id passed) can be specified  which
+      #                   is called at serialization time to determine the default (optional) value
       #   @return [void]
       # @overload property(*props, force: false, handler: nil, &block)
       #   Specifies one or more serialized properties with a getter/setter handler proc/method/block.
@@ -364,29 +396,37 @@ module FIRM
       #         to be able to support setting explicit nil values.
       #   @param [Symbol,String] props one or more ids of serializable properties
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @param [Object] optional indicates optionality;
+      #                   if `false` the property will not be optional;
+      #                   `true` means optional if the serialized value == `nil`;
+      #                   any value other than 'false' or 'true' means optional if the serialize value equals that value;
+      #                   alternatively a Proc, Lambda (gets the object and the property id passed) or
+      #                   UnboundMethod (gets the property id passed) can be specified  which
+      #                   is called at serialization time to determine the default (optional) value
       #   @yieldparam [Symbol,String] id property id
       #   @yieldparam [Object] obj object instance
       #   @yieldparam [Object] val optional property value to set in case of setter request
       #   @return [void]
       def property(*props, **kwargs, &block)
         forced = !!kwargs.delete(:force)
+        optional = kwargs.has_key?(:optional) ? kwargs.delete(:optional) : false
         if block || kwargs[:handler]
           props.each do |prop|
-            serializer_properties << Property.new(self, prop, force: forced, handler: kwargs[:handler], &block)
+            serializer_properties << Property.new(self, prop, force: forced, handler: kwargs[:handler], optional: optional, &block)
           end
         else
           props.flatten.each do |prop|
             if ::Hash === prop
               prop.each_pair do |pn, pp|
-                serializer_properties << Property.new(self, pn, pp, force: forced)
+                serializer_properties << Property.new(self, pn, pp, force: forced, optional: optional)
               end
             else
-              serializer_properties << Property.new(self, prop, force: forced)
+              serializer_properties << Property.new(self, prop, force: forced, optional: optional)
             end
           end
           unless kwargs.empty?
             kwargs.each_pair do |pn, pp|
-              serializer_properties << Property.new(self, pn, pp, force: forced)
+              serializer_properties << Property.new(self, pn, pp, force: forced, optional: optional)
             end
           end
         end

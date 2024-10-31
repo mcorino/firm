@@ -691,6 +691,69 @@ module SerializerTestMixin
 
   end
 
+  class SomeClass
+
+    include FIRM::Serializable
+
+    property :always
+    property :not_when_nil, optional: true  # alternatively you can use `optional: nil`
+    property :not_when_some_value, optional: -1
+    property :not_when_some_derived_value, optional: ->(_obj, _id) { :derived_value }
+
+    def initialize(always, not_when_nil = nil, not_when_some_value = -1, not_when_some_derived_value = :derived_value)
+      @always = always
+      @not_when_nil = not_when_nil
+      @not_when_some_value = not_when_some_value
+      @not_when_some_derived_value = not_when_some_derived_value
+    end
+
+    attr_accessor :always, :not_when_nil, :not_when_some_value, :not_when_some_derived_value
+
+    class << self
+
+      def deserialize_initializer
+        @init ||= ->(obj, _data) { obj }
+      end
+
+      def deserialize_initializer=(init)
+        @init = init
+      end
+
+    end
+
+
+    def init_from_serialized(_data)
+      initialize(nil) # first call the initialize method
+      self.class.deserialize_initializer.call(self, _data)
+      self
+    end
+    protected :init_from_serialized
+
+  end
+
+  def test_optional
+    SomeClass.deserialize_initializer = ->(obj, _data) {
+      obj.always = 'NOT'
+      obj.not_when_nil = :not_nil
+      obj.not_when_some_value = 10
+      obj.not_when_some_derived_value = nil
+    }
+
+    obj_serial = SomeClass.new('Always').serialize
+    obj_new = assert_nothing_raised { SomeClass.deserialize(obj_serial) }
+    assert_equal('Always', obj_new.always)          # always (de-)serialized, so overwrites custom init on deserialize
+    assert_equal(:not_nil, obj_new.not_when_nil)    # not serialized since nil, so leaves custom init
+    assert_equal(10, obj_new.not_when_some_value)   # not serialized since default value, so leaves custom init
+    assert_nil(obj_new.not_when_some_derived_value) # not serialized since default value, so leaves custom init
+
+    obj_serial = SomeClass.new('Always', :ok, 99, :specific_value).serialize
+    obj_new = assert_nothing_raised { SomeClass.deserialize(obj_serial) }
+    assert_equal('Always', obj_new.always)          # always (de-)serialized, so overwrites custom init on deserialize
+    assert_equal(:ok, obj_new.not_when_nil)         # serialized since not default, so overwrites custom init
+    assert_equal(99, obj_new.not_when_some_value)   # serialized since not default, so overwrites custom init
+    assert_equal(:specific_value, obj_new.not_when_some_derived_value) # serialized since not default, so overwrites custom init
+  end
+
   class House
 
     include FIRM::Serializable
