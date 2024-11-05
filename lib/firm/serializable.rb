@@ -38,7 +38,7 @@ module FIRM
         if block || handler
           if handler
             ::Kernel.raise ArgumentError,
-                           "Invalid property handler #{handler} for #{prop}" unless ::Proc === handler || ::Symbol === handler
+                           "Invalid property handler #{handler} for #{prop}" unless ::Proc === handler || ::Symbol === handler || ::String === handler
             if handler.is_a?(::Proc)
               ::Kernel.raise ArgumentError, "Invalid property block #{proc} for #{prop}" unless block.arity == -3
               @getter = ->(obj) { handler.call(@id, obj) }
@@ -330,7 +330,7 @@ module FIRM
     module SerializeClassMethods
 
       # Adds (a) serializable property(-ies) for instances of his class (and derived classes)
-      # @overload property(*props, force: false)
+      # @overload property(*props, force: false, optional: false)
       #   Specifies one or more serialized properties.
       #   The serialization framework will determine the availability of setter and getter methods
       #   automatically by looking for methods <code>"#{prop_id}=(v)"</code>, <code>"#set_{prop_id}(v)"</code> or <code>"#{prop_id}(v)"</code>
@@ -345,7 +345,7 @@ module FIRM
       #                   UnboundMethod (gets the property id passed) can be specified  which
       #                   is called at serialization time to determine the default (optional) value
       #   @return [void]
-      # @overload property(hash, force: false)
+      # @overload property(hash, force: false, optional: false)
       #   Specifies one or more serialized properties with associated setter/getter method ids/procs/lambda-s.
       #   @example
       #     property(
@@ -373,7 +373,7 @@ module FIRM
       #                   UnboundMethod (gets the property id passed) can be specified  which
       #                   is called at serialization time to determine the default (optional) value
       #   @return [void]
-      # @overload property(*props, force: false, handler: nil, &block)
+      # @overload property(*props, force: false, handler: nil, optional: false, &block)
       #   Specifies one or more serialized properties with a getter/setter handler proc/method/block.
       #   The getter/setter proc or block should accept either 2 (property id and object for getter) or 3 arguments
       #   (property id, object and value for setter) and is assumed to handle getter/setter requests
@@ -396,6 +396,7 @@ module FIRM
       #         to be able to support setting explicit nil values.
       #   @param [Symbol,String] props one or more ids of serializable properties
       #   @param [Boolean] force overrides any #disable_serialize for the properties specified
+      #   @param [Symbol,String,Proc] handler serialization handler method name or Proc
       #   @param [Object] optional indicates optionality;
       #                   if `false` the property will not be optional;
       #                   `true` means optional if the serialized value == `nil`;
