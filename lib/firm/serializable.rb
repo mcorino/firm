@@ -11,6 +11,7 @@ module FIRM
 
     class Exception < RuntimeError; end
 
+    # This class encapsulates a serializable property definition.
     class Property
       def initialize(klass, prop, proc=nil, force: false, handler: nil, optional: false, &block)
         ::Kernel.raise ArgumentError, "Invalid property id [#{prop}]" unless ::String === prop || ::Symbol === prop
@@ -70,6 +71,11 @@ module FIRM
 
       attr_reader :id
 
+      # Serializes the defined property for the given object and inserts the serialized data
+      # into the given data object unless included in the given excludes list.
+      # @param [Object] obj
+      # @param [Object] data hash-like object
+      # @param [Array<Symbol>] excludes
       def serialize(obj, data, excludes)
         unless excludes.include?(@id)
           val = getter.call(obj)
@@ -86,6 +92,17 @@ module FIRM
         end
       end
 
+      # Returns the (unserialized) property value for the given object.
+      # @param [Object] obj
+      def get(obj)
+        getter.call(obj)
+      end
+
+      # Restores the defined property for the given object using the deserialized data
+      # extracted from the given data object.
+      # @param [Object] obj
+      # @param [Object] data hash-like object
+      # @return [void]
       def deserialize(obj, data)
         if data.has_key?(@id)
           setter.call(obj, data[@id])
