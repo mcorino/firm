@@ -110,7 +110,7 @@ module FIRM
       end
 
       def optional?(obj, val)
-        @optional && val == (Proc === @default ? @default.call(obj, @id) : @default)
+        @optional && (Proc === @default ? @default.call(obj, @id) : @default) == val
       end
       private :optional?
 
