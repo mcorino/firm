@@ -1,10 +1,26 @@
-begin
-  require 'bigdecimal'
-rescue LoadError
+
+if defined? RUBY_VERSION and RUBY_VERSION >= '3.4.0'
+  require 'bundler/inline'
+
+  gemfile do
+    source 'https://rubygems.org'
+    gem 'base64', require: false
+  end
 end
+
+# from Ruby 3.4.0 BigDecimal will not be available by default anymore
+if defined? RUBY_VERSION and RUBY_VERSION < '3.4.0'
+  begin
+    require 'bigdecimal'
+  rescue LoadError
+    #
+  end
+end
+
 begin
   require 'nokogiri'
 rescue LoadError
+  #
 end
 require 'firm'
 
@@ -238,10 +254,13 @@ module SerializerTestMixin
     assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
     assert_equal(obj, obj_new)
 
-    obj = OpenStruct.new(one: Point.new(10, 90), two: Point.new(20, 80))
-    obj_serial = obj.serialize
-    assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
-    assert_equal(obj, obj_new)
+    # from Ruby 3.4.0 OpenStruct will not be available by default anymore
+    if ::Object.const_defined?(:OpenStruct)
+      obj = OpenStruct.new(one: Point.new(10, 90), two: Point.new(20, 80))
+      obj_serial = obj.serialize
+      assert_nothing_raised { obj_new = FIRM.deserialize(obj_serial) }
+      assert_equal(obj, obj_new)
+    end
 
     obj = [1, nil, 2]
     obj_serial = obj.serialize
@@ -871,15 +890,18 @@ module SerializerTestMixin
       assert_true(set_new.any? { |e| ::Set === e && set_new.object_id == e.object_id })
     end
 
-    ostruct = ::OpenStruct.new(one: 1, two: 2)
-    ostruct.me = ostruct
-    obj_serial = ostruct.serialize
-    ostruct_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
-    assert_instance_of(::OpenStruct, ostruct_new)
-    assert_equal(1, ostruct_new.one)
-    assert_equal(2, ostruct_new.two)
-    assert_instance_of(::OpenStruct, ostruct_new.me)
-    assert_equal(ostruct_new.object_id, ostruct_new.me.object_id)
+    # from Ruby 3.4.0 OpenStruct will not be available by default anymore
+    if ::Object.const_defined?(:OpenStruct)
+      ostruct = ::OpenStruct.new(one: 1, two: 2)
+      ostruct.me = ostruct
+      obj_serial = ostruct.serialize
+      ostruct_new = assert_nothing_raised { FIRM.deserialize(obj_serial) }
+      assert_instance_of(::OpenStruct, ostruct_new)
+      assert_equal(1, ostruct_new.one)
+      assert_equal(2, ostruct_new.two)
+      assert_instance_of(::OpenStruct, ostruct_new.me)
+      assert_equal(ostruct_new.object_id, ostruct_new.me.object_id)
+    end
 
   end
 

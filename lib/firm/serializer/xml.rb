@@ -3,10 +3,13 @@
 
 
 require 'set'
-# from Ruby 3.5.0 OpenStruct will not be available by default anymore
-begin
-  require 'ostruct'
-rescue LoadError
+# from Ruby 3.4.0 OpenStruct will not be available by default anymore
+if defined? RUBY_VERSION and RUBY_VERSION < '3.4.0'
+  begin
+    require 'ostruct'
+  rescue LoadError
+    #
+  end
 end
 require 'date'
 
