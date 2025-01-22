@@ -20,7 +20,7 @@ module FIRM
     def self.manifest
       # create MANIFEST list with included files
       manifest = Rake::FileList.new
-      manifest.include %w[lib/**/* tests/**/*]
+      manifest.include %w[lib/**/*]
       manifest.include 'rakelib/yard/**/*'
       manifest.include %w{LICENSE README.md .yardopts}
       manifest

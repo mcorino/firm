@@ -23,9 +23,6 @@ file FIRM::Gem.gem_file('firm', FIRM::FIRM_VERSION) => FIRM::Gem.manifest do
     gem.require_paths = %w{lib}
     gem.required_ruby_version = '>= 2.7'
     gem.licenses = ['MIT']
-    gem.add_dependency 'rake'
-    gem.add_dependency 'minitest', '~> 5.15'
-    gem.add_dependency 'test-unit', '~> 3.5'
     gem.metadata = {
       "bug_tracker_uri"   => "https://github.com/mcorino/firm/issues",
       "source_code_uri"   => "https://github.com/mcorino/firm",
