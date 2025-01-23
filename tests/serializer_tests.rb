@@ -1172,9 +1172,12 @@ module SerializerTestMixin
   def run_test_threads
     data = { list: ::Array.new(5, [ PropTest.new, Point.new(0, 0), Point.new(10, 10), Point.new(100, 400), Rect.new(20, 20, 40, 40) ]) }
     results = []
+    mutex = Thread::Mutex.new
     threads = ::Array.new(10) do
       Thread.new do
-        results << run_test_fibers(data)
+        mutex.synchronize do
+          results << run_test_fibers(data)
+        end
       end
     end
     threads.each { |t| t.join }
