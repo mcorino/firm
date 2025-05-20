@@ -870,7 +870,7 @@ FIRM automatically recognizes and handles cyclic references of aliasable objects
 As this support is based on the FIRM aliasing support (except for the YAML format) handling cyclic references is 
 restricted to those classes for which FIRM supports aliasing.
 
-> **CAVEAT**: The JRuby Psych implementation has a bug that breaks cyclic reference support for `Set` objects. 
+> **CAVEAT**: The JRuby Psych implementation for JRuby <= 9.4.10.0 has a bug that breaks cyclic reference support for `Set` objects. 
 
 ### Custom initialization for deserialization 
 
