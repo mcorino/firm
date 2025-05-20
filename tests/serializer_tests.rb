@@ -879,7 +879,7 @@ module SerializerTestMixin
 
     # the JRuby Psych implementation had a bug preventing cyclic reference support
     # for Set objects (https://github.com/jruby/jruby/issues/8352)
-    unless defined? JRUBY_VERSION and JRUBY_VERSION >= '9.4.10'
+    unless (defined? JRUBY_VERSION) and (JRUBY_VERSION.split('.').collect {|v| v.to_i } <=> [9, 4, 10, 0]) <= 0
       set = ::Set.new([[1,2], {one: 1}])
       set << set
       obj_serial = set.serialize(pretty: true)
