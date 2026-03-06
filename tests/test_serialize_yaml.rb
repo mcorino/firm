@@ -1,17 +1,16 @@
 
-require 'test/unit'
-require 'test/unit/ui/console/testrunner'
+require 'minitest/autorun'
 require_relative './serializer_tests'
 
-class YamlSerializeTests < Test::Unit::TestCase
+class YamlSerializeTests < Minitest::Test
 
   include SerializerTestMixin
 
-  def self.startup
+  def setup
     FIRM::Serializable.default_format = :yaml
   end
 
-  def self.shutdown
+  def teardown
     FIRM::Serializable.default_format = nil
   end
 

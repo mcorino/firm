@@ -1,13 +1,4 @@
 
-if defined? RUBY_VERSION and RUBY_VERSION >= '3.4.0'
-  require 'bundler/inline'
-
-  gemfile do
-    source 'https://rubygems.org'
-    gem 'base64', require: false
-  end
-end
-
 # from Ruby 3.4.0 BigDecimal will not be available by default anymore
 if defined? RUBY_VERSION and RUBY_VERSION < '3.4.0'
   begin
@@ -23,6 +14,22 @@ rescue LoadError
   #
 end
 require 'firm'
+
+module Minitest
+  module Assertions
+    def assert_nothing_raised(*)
+      yield
+    end
+
+    def assert_true(value, msg = nil)
+      assert(true == !!value, msg)
+    end
+
+    def assert_not_equal(expected, value, msg = nil)
+      assert(expected != value, msg)
+    end
+  end
+end
 
 module SerializerTestMixin
 

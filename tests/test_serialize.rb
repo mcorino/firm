@@ -1,8 +1,7 @@
 
-require 'test/unit'
-require 'test/unit/ui/console/testrunner'
+require 'minitest/autorun'
 require_relative './serializer_tests'
 
-class SerializeTests < Test::Unit::TestCase
+class SerializeTests < Minitest::Test
   include SerializerTestMixin
 end
