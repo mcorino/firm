@@ -32,9 +32,10 @@ module FIRM
 
       CREATE_ID = 'rbklass'.freeze
 
-      # Derived Hash class to use for deserialized JSON object data which
+      # Hash class mixin to use for deserialized JSON object data which
       # supports using Symbol keys.
-      class ObjectHash < ::Hash
+      module ObjectHashPatch
+
         # Returns the object associated with given key.
         # @param [String,Symbol] key key value
         # @return [Object] associated object
@@ -52,6 +53,7 @@ module FIRM
         alias member? include?
         alias has_key? include?
         alias key? include?
+
       end
 
       module ContainerPatch
@@ -195,8 +197,7 @@ module FIRM
           # set custom (more compact) create_id
           ::JSON.create_id = Serializable::JSON::CREATE_ID
           ::JSON.parse!(source,
-                        create_additions: true,
-                        object_class: Serializable::JSON::ObjectHash)
+                        create_additions: true)
         ensure
           # reset safe deserializing
           self.end_safe_deserialize
@@ -211,6 +212,7 @@ module FIRM
 
         def json_create(object)
           data = object['data']
+          data.extend(Serializable::JSON::ObjectHashPatch)
           # deserializing (anchor) object or alias
           if object.has_key?('*id')
             if Serializable::Aliasing.restored?(self, object['*id'])
