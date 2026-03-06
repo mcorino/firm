@@ -52,11 +52,6 @@ jobs:
           overwrite: true
           file_glob: true
 
-      - name: Publish Gem on RubyGems
-        if: github.event_name != 'workflow_dispatch'
-        run: |
-          gem push pkg/*.gem
-
       - name: Build HTML docs
         run: |
           bundle exec yardoc
@@ -101,3 +96,8 @@ jobs:
           file: ${{ runner.temp }}/firm-html-reference.tar.gz
           tag: ${{ github.ref }}
           overwrite: true
+
+      - name: Publish Gem on RubyGems
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          gem push pkg/*.gem
